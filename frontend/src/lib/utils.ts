@@ -1,0 +1,105 @@
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+/**
+ * Utility function to merge Tailwind classes
+ * Essential for shadcn/ui component styling
+ */
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+/**
+ * Date utilities for DORA metrics dashboard
+ */
+export const dateUtils = {
+  /**
+   * Format date for display in charts and UI
+   */
+  formatChartDate: (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch (error) {
+      console.warn('Invalid date string:', dateString);
+      return dateString;
+    }
+  },
+
+  /**
+   * Format date for API requests (ISO string)
+   */
+  formatApiDate: (date: Date): string => {
+    return date.toISOString();
+  },
+
+  /**
+   * Get date range for time range selector
+   */
+  getTimeRangesDates: (timeRange: '7d' | '30d' | '90d' | '1y'): { startDate: string; endDate: string } => {
+    const now = new Date();
+    const endDate = new Date(now);
+    endDate.setHours(23, 59, 59, 999);
+    
+    let startDate: Date;
+    
+    switch (timeRange) {
+      case '7d':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30d':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case '90d':
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      case '1y':
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    }
+
+    startDate.setHours(0, 0, 0, 0);
+
+    return {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+    };
+  },
+
+  /**
+   * Format duration in hours to human readable
+   */
+  formatDuration: (hours: number): string => {
+    if (hours < 1) {
+      return `${Math.round(hours * 60)}m`;
+    } else if (hours < 24) {
+      return `${Math.round(hours * 10) / 10}h`;
+    } else {
+      const days = Math.floor(hours / 24);
+      const remainingHours = Math.round((hours % 24) * 10) / 10;
+      return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
+    }
+  },
+};
+
+/**
+ * Error handling utilities
+ */
+export const errorUtils = {
+  /**
+   * Extract user-friendly error message
+   */
+  getErrorMessage: (error: unknown): string => {
+    if (typeof error === 'string') {
+      return error;
+    }
+    
+    if (error && typeof error === 'object' && 'message' in error) {
+      return String(error.message);
+    }
+    
+    return 'An unexpected error occurred';
+  },
+};
