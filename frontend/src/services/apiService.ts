@@ -5,8 +5,24 @@ import {
   LeadTimeResponse,
   MeanTimeToRestoreResponse,
   FiltersResponse,
-  ApiError,
 } from '@/types/api';
+
+/**
+ * FIXED: Define ApiError interface here since it's not properly exported from types
+ */
+interface ApiError extends Error {
+  statusCode?: number;
+  organization?: string;
+  timestamp?: string;
+}
+
+/**
+ * FIXED: Define custom error types for better error handling
+ */
+interface NetworkError extends Error {
+  code?: string;
+  statusCode: number;
+}
 
 /**
  * API Service class for communicating with DORA metrics microservice
@@ -76,19 +92,34 @@ class ApiService {
       const response = await fetch(url, config);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({
-          message: 'Unknown API error',
-          statusCode: response.status,
-        }));
+        // Try to parse error response from backend
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          // If JSON parsing fails, create a generic error
+          errorData = {
+            message: `HTTP ${response.status}: ${response.statusText}`,
+            error: true,
+            code: 'HTTP_ERROR',
+          };
+        }
 
-        const apiError: ApiError = {
-          message: errorData.message || `HTTP ${response.status}`,
-          statusCode: response.status,
+        // Create standardized API error
+        const apiError: ApiError = new Error(errorData.message || `HTTP ${response.status}`) as ApiError;
+        apiError.statusCode = response.status;
+        apiError.organization = this.organizationName;
+        apiError.timestamp = new Date().toISOString();
+
+        console.error('API Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          message: apiError.message,
           organization: this.organizationName,
-          timestamp: new Date().toISOString(),
-        };
+          endpoint,
+          errorData,
+        });
 
-        console.error('API Error:', apiError);
         throw apiError;
       }
 
@@ -102,21 +133,41 @@ class ApiService {
       });
 
       return data as T;
+
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('fetch')) {
+      // Handle different types of errors
+      if (error instanceof TypeError && (
+        error.message.includes('fetch') || 
+        error.message.includes('NetworkError') ||
+        error.message.includes('Failed to fetch')
+      )) {
         // Network or CORS error
-        const networkError: ApiError = {
-          message: 'Network error - unable to connect to API',
-          statusCode: 0,
+        const networkError: NetworkError = new Error('Network error - unable to connect to API') as NetworkError;
+        networkError.statusCode = 0;
+        networkError.code = 'NETWORK_ERROR';
+        
+        console.error('Network Error:', {
+          originalError: error.message,
+          url,
           organization: this.organizationName,
-          timestamp: new Date().toISOString(),
-        };
-        console.error('Network Error:', networkError);
+        });
+        
         throw networkError;
       }
       
-      // Re-throw API errors
-      throw error;
+      // If it's already an ApiError (from response.ok check above), re-throw it
+      if (error instanceof Error && 'statusCode' in error) {
+        throw error;
+      }
+
+      // Unknown error - wrap it
+      const unknownError: ApiError = new Error(`Unknown error: ${error instanceof Error ? error.message : String(error)}`) as ApiError;
+      unknownError.statusCode = 500;
+      unknownError.organization = this.organizationName;
+      unknownError.timestamp = new Date().toISOString();
+      
+      console.error('Unknown Error:', unknownError);
+      throw unknownError;
     }
   }
 
@@ -237,18 +288,20 @@ class ApiService {
   /**
    * Health check endpoint
    */
-  async healthCheck(): Promise<{ status: 'ok' | 'error'; timestamp: string }> {
+  async healthCheck(): Promise<{ status: 'ok' | 'error'; timestamp: string; details?: any }> {
     try {
-      await this.fetchWithErrorHandling('/health');
+      const result = await this.fetchWithErrorHandling<any>('/health');
       return {
         status: 'ok',
         timestamp: new Date().toISOString(),
+        details: result,
       };
     } catch (error) {
       console.error('Health check failed:', error);
       return {
         status: 'error',
         timestamp: new Date().toISOString(),
+        details: error instanceof Error ? error.message : String(error),
       };
     }
   }

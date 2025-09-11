@@ -14,8 +14,11 @@ interface ChangeFailureChartProps {
 /**
  * ChangeFailureChart Component
  * 
- * Renders the "Daily Change Failures" red bar chart matching your screenshot.
- * Shows the number of failed deployments per day.
+ * PRODUCTION VERSION: Uses backend SQL aggregation
+ * - Data comes pre-aggregated by date from the microservice
+ * - Simple clean X-axis with preserveStartEnd and tickCount
+ * - Enhanced tooltips show aggregation context
+ * - Much better performance for large datasets
  */
 export const ChangeFailureChart: React.FC<ChangeFailureChartProps> = ({
   data,
@@ -24,7 +27,8 @@ export const ChangeFailureChart: React.FC<ChangeFailureChartProps> = ({
   onRetry,
 }) => {
   /**
-   * Transform API data for Recharts
+   * SIMPLIFIED: Transform API data for Recharts
+   * Since backend now returns pre-aggregated data by date, we just need to format it
    */
   const chartData = React.useMemo(() => {
     return data.map(item => ({
@@ -33,15 +37,17 @@ export const ChangeFailureChart: React.FC<ChangeFailureChartProps> = ({
       failedDeployments: item.failed_deployments,
       totalDeployments: item.total_deployments,
       failureRate: item.failure_rate_percent,
-      // Additional data for tooltip
-      projectName: item.project_name,
-      applicationName: item.application_name,
-      environmentType: item.environment_type,
+      // Enhanced context from backend aggregation
+      projectCount: item.project_count || 0,
+      applicationCount: item.application_count || 0,
+      projects: item.projects || [],
+      applications: item.applications || [],
+      environments: item.environments || [],
     }));
   }, [data]);
 
   /**
-   * Custom tooltip component
+   * Enhanced tooltip component showing aggregation context
    */
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload || payload.length === 0) return null;
@@ -49,7 +55,7 @@ export const ChangeFailureChart: React.FC<ChangeFailureChartProps> = ({
     const data = payload[0].payload;
     
     return (
-      <div className="bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-lg">
+      <div className="bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-lg max-w-xs">
         <div className="text-gray-200 font-medium mb-2">{label}</div>
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -68,9 +74,52 @@ export const ChangeFailureChart: React.FC<ChangeFailureChartProps> = ({
             </div>
           </div>
         </div>
-        {data.projectName && (
-          <div className="text-xs text-gray-400 mt-1">
-            Project: {data.projectName}
+        
+        {/* Show aggregation context from backend */}
+        {(data.projectCount > 0 || data.applicationCount > 0) && (
+          <div className="text-xs text-gray-400 space-y-1 border-t border-gray-600 pt-2 mt-2">
+            {data.projectCount > 0 && (
+              <div>
+                <span className="font-medium">
+                  {data.projectCount} Project{data.projectCount !== 1 ? 's' : ''}
+                </span>
+                {data.projects.length > 0 && (
+                  <div className="pl-2 max-h-20 overflow-y-auto">
+                    {data.projects.slice(0, 3).map((project: string, idx: number) => (
+                      <div key={idx} className="truncate">{project}</div>
+                    ))}
+                    {data.projects.length > 3 && (
+                      <div className="text-gray-500">... and {data.projects.length - 3} more</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {data.applicationCount > 0 && (
+              <div>
+                <span className="font-medium">
+                  {data.applicationCount} Application{data.applicationCount !== 1 ? 's' : ''}
+                </span>
+                {data.applications.length > 0 && (
+                  <div className="pl-2 max-h-20 overflow-y-auto">
+                    {data.applications.slice(0, 3).map((app: string, idx: number) => (
+                      <div key={idx} className="truncate">{app}</div>
+                    ))}
+                    {data.applications.length > 3 && (
+                      <div className="text-gray-500">... and {data.applications.length - 3} more</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {data.environments.length > 0 && (
+              <div>
+                <span className="font-medium">Environments:</span>
+                <span className="pl-2">{data.environments.join(', ')}</span>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -150,7 +199,9 @@ export const ChangeFailureChart: React.FC<ChangeFailureChartProps> = ({
                     angle={-45}
                     textAnchor="end"
                     height={60}
-                    interval={0}
+                    // FIXED: Show fewer ticks for cleaner display
+                    interval="preserveStartEnd"
+                    tickCount={6}
                   />
                   <YAxis
                     axisLine={false}

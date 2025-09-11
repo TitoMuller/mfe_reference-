@@ -14,12 +14,11 @@ interface DeploymentChartProps {
 /**
  * DeploymentChart Component
  * 
- * Renders the "Daily Deployments" green bar chart matching your screenshot.
- * Features:
- * - Green bars for deployment counts
- * - Hover tooltips showing exact values
- * - Responsive design
- * - Loading and error states
+ * PRODUCTION VERSION: Uses backend SQL aggregation
+ * - Data comes pre-aggregated by date from the microservice
+ * - No complex frontend aggregation needed
+ * - Enhanced tooltips show aggregation context
+ * - Much better performance for large datasets
  */
 export const DeploymentChart: React.FC<DeploymentChartProps> = ({
   data,
@@ -28,22 +27,26 @@ export const DeploymentChart: React.FC<DeploymentChartProps> = ({
   onRetry,
 }) => {
   /**
-   * Transform API data for Recharts
+   * SIMPLIFIED: Transform API data for Recharts
+   * Since backend now returns pre-aggregated data by date, we just need to format it
    */
   const chartData = React.useMemo(() => {
     return data.map(item => ({
       date: item.date,
       formattedDate: dateUtils.formatChartDate(item.date),
       deployments: item.deployment_count,
-      // Additional data for tooltip
-      projectName: item.project_name,
-      applicationName: item.application_name,
-      environmentType: item.environment_type,
+      // Enhanced context from backend aggregation
+      projectCount: item.project_count || 0,
+      applicationCount: item.application_count || 0,
+      environmentCount: item.environment_count || 0,
+      projects: item.projects || [],
+      applications: item.applications || [],
+      environments: item.environments || [],
     }));
   }, [data]);
 
   /**
-   * Custom tooltip component
+   * Enhanced tooltip component showing aggregation context
    */
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload || payload.length === 0) return null;
@@ -51,16 +54,59 @@ export const DeploymentChart: React.FC<DeploymentChartProps> = ({
     const data = payload[0].payload;
     
     return (
-      <div className="bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-lg">
+      <div className="bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-lg max-w-xs">
         <div className="text-gray-200 font-medium mb-1">{label}</div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mb-2">
           <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-          <span className="text-gray-300">Deployments</span>
+          <span className="text-gray-300">Total Deployments</span>
           <span className="text-green-400 font-bold ml-auto">{data.deployments}</span>
         </div>
-        {data.projectName && (
-          <div className="text-xs text-gray-400 mt-1">
-            Project: {data.projectName}
+        
+        {/* Show aggregation context from backend */}
+        {(data.projectCount > 0 || data.applicationCount > 0) && (
+          <div className="text-xs text-gray-400 space-y-1 border-t border-gray-600 pt-2">
+            {data.projectCount > 0 && (
+              <div>
+                <span className="font-medium">
+                  {data.projectCount} Project{data.projectCount !== 1 ? 's' : ''}
+                </span>
+                {data.projects.length > 0 && (
+                  <div className="pl-2 max-h-20 overflow-y-auto">
+                    {data.projects.slice(0, 3).map((project: string, idx: number) => (
+                      <div key={idx} className="truncate">{project}</div>
+                    ))}
+                    {data.projects.length > 3 && (
+                      <div className="text-gray-500">... and {data.projects.length - 3} more</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {data.applicationCount > 0 && (
+              <div>
+                <span className="font-medium">
+                  {data.applicationCount} Application{data.applicationCount !== 1 ? 's' : ''}
+                </span>
+                {data.applications.length > 0 && (
+                  <div className="pl-2 max-h-20 overflow-y-auto">
+                    {data.applications.slice(0, 3).map((app: string, idx: number) => (
+                      <div key={idx} className="truncate">{app}</div>
+                    ))}
+                    {data.applications.length > 3 && (
+                      <div className="text-gray-500">... and {data.applications.length - 3} more</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {data.environments.length > 0 && (
+              <div>
+                <span className="font-medium">Environments:</span>
+                <span className="pl-2">{data.environments.join(', ')}</span>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -140,7 +186,9 @@ export const DeploymentChart: React.FC<DeploymentChartProps> = ({
                     angle={-45}
                     textAnchor="end"
                     height={60}
-                    interval={0}
+                    // FIXED: Show fewer ticks for cleaner display
+                    interval="preserveStartEnd"
+                    tickCount={6}
                   />
                   <YAxis
                     axisLine={false}

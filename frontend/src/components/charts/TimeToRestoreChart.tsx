@@ -14,8 +14,11 @@ interface TimeToRestoreChartProps {
 /**
  * TimeToRestoreChart Component
  * 
- * Renders the "Time to Restore Services" purple/red area chart matching your screenshot.
- * Shows mean time to restore services over time.
+ * PRODUCTION VERSION: Uses backend SQL aggregation
+ * - Data comes pre-aggregated by date from the microservice
+ * - Clean X-axis with preserveStartEnd and tickCount
+ * - Enhanced tooltips show aggregation context
+ * - Compatible with new aggregated data structure
  */
 export const TimeToRestoreChart: React.FC<TimeToRestoreChartProps> = ({
   data,
@@ -25,21 +28,25 @@ export const TimeToRestoreChart: React.FC<TimeToRestoreChartProps> = ({
 }) => {
   /**
    * Transform API data for Recharts
+   * Updated to handle aggregated data structure from backend
    */
   const chartData = React.useMemo(() => {
     return data.map(item => ({
       date: item.date,
       formattedDate: dateUtils.formatChartDate(item.date),
       restoreTimeHours: item.median_hours_to_restore,
-      // Additional data for tooltip
-      projectName: item.project_name,
-      applicationName: item.application_name,
-      environmentType: item.environment_type,
+      // Enhanced context from backend aggregation
+      incidentCount: item.incident_count || 0,
+      projectCount: item.project_count || 0,
+      applicationCount: item.application_count || 0,
+      projects: item.projects || [],
+      applications: item.applications || [],
+      environments: item.environments || [],
     }));
   }, [data]);
 
   /**
-   * Custom tooltip component
+   * Enhanced tooltip component showing aggregation context
    */
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload || payload.length === 0) return null;
@@ -47,23 +54,71 @@ export const TimeToRestoreChart: React.FC<TimeToRestoreChartProps> = ({
     const data = payload[0].payload;
     
     return (
-      <div className="bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-lg">
+      <div className="bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-lg max-w-xs">
         <div className="text-gray-200 font-medium mb-2">{label}</div>
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-            <span className="text-gray-300">Time to restore</span>
+            <span className="text-gray-300">Average time to restore</span>
             <span className="text-purple-400 font-bold ml-auto">
-              {dateUtils.formatDuration(data.restoreTimeHours)}
+              {dateUtils.formatDuration ? dateUtils.formatDuration(data.restoreTimeHours) : `${data.restoreTimeHours.toFixed(1)}h`}
             </span>
           </div>
           <div className="text-xs text-gray-400">
             {data.restoreTimeHours.toFixed(1)} hours
           </div>
+          {data.incidentCount > 0 && (
+            <div className="text-xs text-gray-400">
+              Based on {data.incidentCount} incident{data.incidentCount !== 1 ? 's' : ''}
+            </div>
+          )}
         </div>
-        {data.projectName && (
-          <div className="text-xs text-gray-400 mt-1">
-            Project: {data.projectName}
+
+        {/* Show aggregation context from backend */}
+        {(data.projectCount > 0 || data.applicationCount > 0) && (
+          <div className="text-xs text-gray-400 space-y-1 border-t border-gray-600 pt-2 mt-2">
+            {data.projectCount > 0 && (
+              <div>
+                <span className="font-medium">
+                  {data.projectCount} Project{data.projectCount !== 1 ? 's' : ''}
+                </span>
+                {data.projects.length > 0 && (
+                  <div className="pl-2 max-h-16 overflow-y-auto">
+                    {data.projects.slice(0, 3).map((project: string, idx: number) => (
+                      <div key={idx} className="truncate text-gray-500">{project}</div>
+                    ))}
+                    {data.projects.length > 3 && (
+                      <div className="text-gray-500">... and {data.projects.length - 3} more</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {data.applicationCount > 0 && (
+              <div>
+                <span className="font-medium">
+                  {data.applicationCount} Application{data.applicationCount !== 1 ? 's' : ''}
+                </span>
+                {data.applications.length > 0 && (
+                  <div className="pl-2 max-h-16 overflow-y-auto">
+                    {data.applications.slice(0, 3).map((app: string, idx: number) => (
+                      <div key={idx} className="truncate text-gray-500">{app}</div>
+                    ))}
+                    {data.applications.length > 3 && (
+                      <div className="text-gray-500">... and {data.applications.length - 3} more</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {data.environments.length > 0 && (
+              <div>
+                <span className="font-medium">Environments:</span>
+                <span className="pl-2 text-gray-500">{data.environments.join(', ')}</span>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -91,7 +146,7 @@ export const TimeToRestoreChart: React.FC<TimeToRestoreChartProps> = ({
             Time to Restore Services
           </h3>
           <p className="text-sm text-gray-400">
-            Median time to restore services after incidents over time
+            Average time to restore services after incidents over time
           </p>
         </div>
 
@@ -143,7 +198,9 @@ export const TimeToRestoreChart: React.FC<TimeToRestoreChartProps> = ({
                     angle={-45}
                     textAnchor="end"
                     height={60}
-                    interval={0}
+                    // FIXED: Show fewer ticks for cleaner display
+                    interval="preserveStartEnd"
+                    tickCount={6}
                   />
                   <YAxis
                     axisLine={false}
@@ -153,6 +210,7 @@ export const TimeToRestoreChart: React.FC<TimeToRestoreChartProps> = ({
                   />
                   <Tooltip 
                     content={<CustomTooltip />}
+                    cursor={{ stroke: '#8b5cf6', strokeWidth: 1 }}
                   />
                   <Area
                     type="monotone"
