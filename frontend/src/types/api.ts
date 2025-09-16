@@ -1,29 +1,42 @@
-// Updated frontend/src/types/api.ts
-// Enhanced types to support the new aggregation context from backend
+// Fixed types to support multi-select filters (updating existing types)
 
-// Core API response types matching your microservice
 export interface DateRange {
   start: string;
   end: string;
 }
 
+/**
+ * DashboardFilters (FIXED to support both single values and arrays)
+ * Maintains backward compatibility while enabling multi-select
+ */
+export interface DashboardFilters {
+  timeRange?: '7d' | '30d' | '90d' | '1y';
+  startDate?: string;
+  endDate?: string;
+  projectName?: string | string[];        // Now supports both single and multi-select
+  applicationName?: string | string[];    // Now supports both single and multi-select  
+  environmentType?: string | string[];    // Now supports both single and multi-select
+}
+
+/**
+ * BaseQueryParams (FIXED to support arrays)
+ */
 export interface BaseQueryParams {
   organizationName: string;
   startDate?: string;
   endDate?: string;
-  projectName?: string;
-  applicationName?: string;
-  environmentType?: 'production' | 'staging' | 'development';
+  projectName?: string | string[];        // Backend accepts both formats
+  applicationName?: string | string[];    // Backend accepts both formats
+  environmentType?: string | string[];    // Backend accepts both formats
   timeRange?: '7d' | '30d' | '90d' | '1y';
 }
 
-// ENHANCED: Deployment Frequency Types with aggregation context
+// Re-export all existing response types (unchanged)
 export interface DeploymentFrequencyData {
   date: string;
   organization_name: string;
   deployment_count: number;
   daily_average?: number;
-  // NEW: Aggregation context from backend SQL
   project_count?: number;
   application_count?: number;
   environment_count?: number;
@@ -44,14 +57,12 @@ export interface DeploymentFrequencyResponse {
   };
 }
 
-// ENHANCED: Change Failure Rate Types with aggregation context
 export interface ChangeFailureRateData {
   date: string;
   organization_name: string;
   total_deployments: number;
   failed_deployments: number;
   failure_rate_percent: number;
-  // NEW: Aggregation context from backend SQL
   project_count?: number;
   application_count?: number;
   projects?: string[];
@@ -72,13 +83,11 @@ export interface ChangeFailureRateResponse {
   };
 }
 
-// ENHANCED: Lead Time Types with aggregation context
 export interface LeadTimeData {
   date: string;
   organization_name: string;
   median_lead_time_hours: number;
   lead_time_days: number;
-  // NEW: Aggregation context from backend SQL
   change_count?: number;
   project_count?: number;
   application_count?: number;
@@ -100,12 +109,10 @@ export interface LeadTimeResponse {
   };
 }
 
-// ENHANCED: Mean Time to Restore Types with aggregation context
 export interface MeanTimeToRestoreData {
   date: string;
   organization_name: string;
   median_hours_to_restore: number;
-  // NEW: Aggregation context from backend SQL
   incident_count?: number;
   project_count?: number;
   application_count?: number;
@@ -134,18 +141,10 @@ export interface FiltersResponse {
     applications: string[];
     environments: string[];
   };
+  timestamp: string;
 }
 
-// Dashboard and UI Types (unchanged)
-export interface DashboardFilters {
-  timeRange?: '7d' | '30d' | '90d' | '1y';
-  startDate?: string;
-  endDate?: string;
-  projectName?: string;
-  applicationName?: string;
-  environmentType?: 'production' | 'staging' | 'development';
-}
-
+// Dashboard and UI Types (unchanged except for DashboardFilters above)
 export interface LoadingState {
   deploymentFrequency: boolean;
   changeFailureRate: boolean;
@@ -168,3 +167,61 @@ export interface ApiError extends Error {
   organization?: string;
   timestamp?: string;
 }
+
+/**
+ * Environment Filter Values (NEW - for the environment filter requirement)
+ * These are the exact values that should appear in the Environment filter
+ */
+export type EnvironmentType = 'Production' | 'Non-production';
+
+/**
+ * Helper function to normalize filter values to arrays (NEW)
+ * Helps convert single values to arrays for consistent handling
+ */
+export const normalizeFilterValue = (value: string | string[] | undefined): string[] => {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+};
+
+/**
+ * Helper function to check if environment filter should include all (NEW)
+ * According to spec: empty selection behaves same as selecting both
+ */
+export const shouldIncludeAllEnvironments = (environmentFilters: string | string[] | undefined): boolean => {
+  const envArray = normalizeFilterValue(environmentFilters);
+  return envArray.length === 0 || envArray.length === 2;
+};
+
+/**
+ * Helper function to get effective environment filter for API calls (NEW)
+ * Implements the logic: empty selection = both Production and Non-production
+ */
+export const getEffectiveEnvironmentFilter = (environmentFilters: string | string[] | undefined): string[] => {
+  if (shouldIncludeAllEnvironments(environmentFilters)) {
+    return ['Production', 'Non-production'];
+  }
+  return normalizeFilterValue(environmentFilters);
+};
+
+/**
+ * Helper function to check if any filters are applied (NEW)
+ */
+export const hasActiveFilters = (filters: DashboardFilters): boolean => {
+  const projectArray = normalizeFilterValue(filters.projectName);
+  const appArray = normalizeFilterValue(filters.applicationName);
+  const envArray = normalizeFilterValue(filters.environmentType);
+  
+  return projectArray.length > 0 || appArray.length > 0 || envArray.length > 0;
+};
+
+/**
+ * Helper function to get filter display text (NEW)
+ * Used for showing user-friendly filter summaries
+ */
+export const getFilterDisplayText = (filterValue: string | string[] | undefined, allLabel: string = 'All'): string => {
+  const valueArray = normalizeFilterValue(filterValue);
+  
+  if (valueArray.length === 0) return allLabel;
+  if (valueArray.length === 1) return valueArray[0];
+  return `${valueArray.length} selected`;
+};

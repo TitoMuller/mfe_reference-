@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, ChevronDown, Info } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Info } from 'lucide-react';
 import { Button, Card, CardContent, LoadingSpinner, ErrorMessage } from '@/components/ui';
 import { MetricCard } from '@/components/MetricCard';
 import { DeploymentChart } from '@/components/charts/DeploymentChart';
@@ -23,13 +23,14 @@ import {
 import { dateUtils, errorUtils } from '@/lib/utils';
 
 /**
- * Main DORA Metrics Dashboard Component
+ * DoraDashboard Component (Fixed to support multi-select and cascading filters)
  * 
- * This component renders the complete dashboard matching your screenshot:
- * - Header with title and explainer button
- * - Filter row with time range and dropdowns
- * - 4 metric cards showing key numbers
- * - 4 charts stacked vertically
+ * Fixed features:
+ * 1. Multi-select filters with arrays instead of single values
+ * 2. Cascading filter behavior (Project -> Applications)
+ * 3. Environment filter with Production/Non-production options
+ * 4. Visual improvements matching the screenshot design
+ * 5. Proper handling of empty selections (environment logic)
  */
 export const DoraDashboard: React.FC = () => {
   // State for dashboard data
@@ -45,33 +46,36 @@ export const DoraDashboard: React.FC = () => {
     meanTimeToRestore: null,
   });
 
-  // State for available filters
+  // State for available filters (now supporting cascading)
   const [availableFilters, setAvailableFilters] = useState<FiltersResponse | null>(null);
+  const [availableApplications, setAvailableApplications] = useState<string[]>([]);
 
-  // State for current filters
+  // Fixed filter state to support arrays for multi-select
   const [filters, setFilters] = useState<DashboardFilters>({
-    timeRange: '30d', // Default to 30 days as shown in screenshot
-    projectName: undefined,
-    applicationName: undefined,
-    environmentType: undefined,
+    timeRange: '30d',
+    projectName: undefined,      // Will be string[] when multi-select is used
+    applicationName: undefined,  // Will be string[] when multi-select is used
+    environmentType: undefined,  // Will be string[] when multi-select is used
   });
 
   // Loading states
-  const [loading, setLoading] = useState<LoadingState>({
+  const [loading, setLoading] = useState<LoadingState & { cascadingFilters: boolean }>({
     deploymentFrequency: false,
     changeFailureRate: false,
     leadTime: false,
     meanTimeToRestore: false,
     filters: false,
+    cascadingFilters: false,
   });
 
   // Error states
-  const [errors, setErrors] = useState<ErrorState>({
+  const [errors, setErrors] = useState<ErrorState & { cascadingFilters: string | null }>({
     deploymentFrequency: null,
     changeFailureRate: null,
     leadTime: null,
     meanTimeToRestore: null,
     filters: null,
+    cascadingFilters: null,
   });
 
   // UI state
@@ -86,14 +90,41 @@ export const DoraDashboard: React.FC = () => {
   }, []);
 
   /**
-   * Load metrics data when filters change
+   * Load metrics data when filters change (debounced)
    */
   useEffect(() => {
-    loadMetricsData();
+    const timeoutId = setTimeout(() => {
+      loadMetricsData();
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
   }, [filters]);
 
   /**
-   * Load available filter options from API
+   * Load cascading applications when projects change
+   */
+  useEffect(() => {
+    const projectArray = Array.isArray(filters.projectName) ? filters.projectName : 
+                        filters.projectName ? [filters.projectName] : [];
+    
+    if (projectArray.length > 0) {
+      loadCascadingApplications(projectArray);
+    } else {
+      // Reset applications to all available when no projects selected
+      setAvailableApplications(availableFilters?.available_filters.applications || []);
+      
+      // Clear application selections if they're no longer valid
+      if (filters.applicationName) {
+        setFilters(prev => ({
+          ...prev,
+          applicationName: undefined,
+        }));
+      }
+    }
+  }, [filters.projectName, availableFilters]);
+
+  /**
+   * Load initial filter options from API
    */
   const loadAvailableFilters = async () => {
     setLoading(prev => ({ ...prev, filters: true }));
@@ -102,6 +133,7 @@ export const DoraDashboard: React.FC = () => {
     try {
       const filtersData = await apiService.getFilters();
       setAvailableFilters(filtersData);
+      setAvailableApplications(filtersData.available_filters.applications);
       console.log('Available filters loaded:', filtersData);
     } catch (error) {
       const errorMessage = errorUtils.getErrorMessage(error);
@@ -113,37 +145,78 @@ export const DoraDashboard: React.FC = () => {
   };
 
   /**
-   * Load all metrics data from API
+   * Load cascading applications based on selected projects
+   */
+  const loadCascadingApplications = useCallback(async (selectedProjects: string[]) => {
+    setLoading(prev => ({ ...prev, cascadingFilters: true }));
+    setErrors(prev => ({ ...prev, cascadingFilters: null }));
+
+    try {
+      // Call API with selected projects to get filtered applications
+      const cascadingFilters = await apiService.getCascadingFilters(selectedProjects);
+      setAvailableApplications(cascadingFilters.applications);
+
+      // Remove any selected applications that are no longer available
+      const currentAppArray = Array.isArray(filters.applicationName) ? filters.applicationName :
+                             filters.applicationName ? [filters.applicationName] : [];
+      const validApplications = currentAppArray.filter(app => 
+        cascadingFilters.applications.includes(app)
+      );
+      
+      if (validApplications.length !== currentAppArray.length) {
+        setFilters(prev => ({
+          ...prev,
+          applicationName: validApplications.length > 0 ? validApplications : undefined,
+        }));
+      }
+
+      console.log('Cascading applications loaded:', cascadingFilters.applications);
+    } catch (error) {
+      const errorMessage = errorUtils.getErrorMessage(error);
+      setErrors(prev => ({ ...prev, cascadingFilters: errorMessage }));
+      console.error('Failed to load cascading applications:', error);
+    } finally {
+      setLoading(prev => ({ ...prev, cascadingFilters: false }));
+    }
+  }, [filters.applicationName]);
+
+  /**
+   * Load all metrics data from API with current filters
    */
   const loadMetricsData = async () => {
     console.log('Loading metrics data with filters:', filters);
 
     // Set loading state for all metrics
-    setLoading({
+    setLoading(prev => ({
+      ...prev,
       deploymentFrequency: true,
       changeFailureRate: true,
       leadTime: true,
       meanTimeToRestore: true,
-      filters: loading.filters,
-    });
+    }));
 
     // Clear previous errors
-    setErrors({
+    setErrors(prev => ({
+      ...prev,
       deploymentFrequency: null,
       changeFailureRate: null,
       leadTime: null,
       meanTimeToRestore: null,
-      filters: errors.filters,
-    });
-
-    // Build API parameters
-    const apiParams = {
-      ...filters,
-      ...(filters.timeRange && dateUtils.getTimeRangesDates(filters.timeRange)),
-    };
+    }));
 
     try {
-      // Fetch all metrics in parallel for better performance
+      // Build API parameters handling both single values and arrays
+      const apiParams = {
+        ...filters,
+        // Handle environment filter logic: empty = both Production and Non-production
+        environmentType: getEffectiveEnvironmentFilter(filters.environmentType),
+        // Add date range if time range is selected
+        ...(filters.timeRange && dateUtils.getTimeRangesDates(filters.timeRange)),
+      };
+
+      console.log('API parameters:', apiParams);
+
+      // Fetch all metrics
       const allMetrics = await apiService.getAllMetrics(apiParams);
       
       setMetricsData(allMetrics);
@@ -157,48 +230,105 @@ export const DoraDashboard: React.FC = () => {
       const errorMessage = errorUtils.getErrorMessage(error);
 
       // Set error for all metrics
-      setErrors({
+      setErrors(prev => ({
+        ...prev,
         deploymentFrequency: errorMessage,
         changeFailureRate: errorMessage,
         leadTime: errorMessage,
         meanTimeToRestore: errorMessage,
-        filters: errors.filters,
-      });
+      }));
     } finally {
       // Clear loading state
-      setLoading({
+      setLoading(prev => ({
+        ...prev,
         deploymentFrequency: false,
         changeFailureRate: false,
         leadTime: false,
         meanTimeToRestore: false,
-        filters: loading.filters,
-      });
+      }));
     }
   };
 
   /**
-   * Handle filter changes
+   * Get effective environment filter for API calls
+   * According to spec: empty selection behaves same as selecting both
    */
-  const handleFilterChange = (key: keyof DashboardFilters, value: any) => {
-    console.log('Filter changed:', { key, value });
+  const getEffectiveEnvironmentFilter = (environmentFilter: string | string[] | undefined): string[] => {
+    if (!environmentFilter) {
+      return ['Production', 'Non-production']; // Empty = both
+    }
+    
+    const envArray = Array.isArray(environmentFilter) ? environmentFilter : [environmentFilter];
+    
+    if (envArray.length === 0) {
+      return ['Production', 'Non-production']; // Empty = both
+    }
+    
+    return envArray;
+  };
+
+  /**
+   * Handle project filter changes with cascading logic
+   */
+  const handleProjectChange = (selectedProjects: string[] | undefined) => {
+    console.log('Project filter changed:', selectedProjects);
     
     setFilters(prev => ({
       ...prev,
-      [key]: value,
-      // Reset date range when time range is changed
-      ...(key === 'timeRange' && { startDate: undefined, endDate: undefined }),
+      projectName: selectedProjects,
+      // Clear applications when projects change (they'll be reloaded)
+      applicationName: undefined,
     }));
   };
 
   /**
-   * Handle time range changes from date picker
+   * Handle application filter changes
+   */
+  const handleApplicationChange = (selectedApplications: string[] | undefined) => {
+    console.log('Application filter changed:', selectedApplications);
+    
+    setFilters(prev => ({
+      ...prev,
+      applicationName: selectedApplications,
+    }));
+  };
+
+  /**
+   * Handle environment filter changes
+   * Environment filter has special values: Production, Non-production
+   */
+  const handleEnvironmentChange = (selectedEnvironments: string[] | undefined) => {
+    console.log('Environment filter changed:', selectedEnvironments);
+    
+    setFilters(prev => ({
+      ...prev,
+      environmentType: selectedEnvironments,
+    }));
+  };
+
+  /**
+   * Handle time range changes
+   */
+  const handleTimeRangeChange = (timeRange: string) => {
+    console.log('Time range changed:', timeRange);
+    
+    setFilters(prev => ({
+      ...prev,
+      timeRange: timeRange as any,
+      startDate: undefined,
+      endDate: undefined,
+    }));
+  };
+
+  /**
+   * Handle custom date range changes
    */
   const handleDateRangeChange = (startDate: string, endDate: string) => {
     console.log('Date range changed:', { startDate, endDate });
     
     setFilters(prev => ({
       ...prev,
-      timeRange: '30d', // Reset to default
+      timeRange: undefined,
       startDate,
       endDate,
     }));
@@ -226,11 +356,29 @@ export const DoraDashboard: React.FC = () => {
     loadMetricsData();
   };
 
+  /**
+   * Retry loading filters
+   */
+  const handleRetryFilters = () => {
+    console.log('Retrying filter load');
+    loadAvailableFilters();
+  };
+
   // Check if any data is loading
   const isAnyLoading = Object.values(loading).some(Boolean);
   
   // Check if we have any data to display
   const hasData = Object.values(metricsData).some(data => data !== null);
+
+  // Check if we have any filters applied
+  const hasActiveFilters = (
+    filters.projectName ||
+    filters.applicationName ||
+    filters.environmentType
+  );
+
+  // Get environment options (fixed values as per requirement)
+  const environmentOptions = ['Production', 'Non-production'];
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
@@ -252,7 +400,7 @@ export const DoraDashboard: React.FC = () => {
           </Button>
         </div>
 
-        {/* Filters Row - matches screenshot layout */}
+        {/* Fixed Filters Row - now with multi-select and cascading */}
         <Card className="bg-gray-900 border-gray-800">
           <CardContent className="p-4">
             <div className="flex flex-wrap items-center gap-4">
@@ -260,46 +408,53 @@ export const DoraDashboard: React.FC = () => {
               <div className="flex flex-col">
                 <label className="text-sm text-gray-400 mb-1">Time range</label>
                 <TimeRangePicker
-                  value={filters.timeRange}
-                  onChange={(timeRange) => handleFilterChange('timeRange', timeRange)}
+                  value={filters.timeRange || '30d'}
+                  onChange={handleTimeRangeChange}
                   startDate={filters.startDate}
                   endDate={filters.endDate}
                   onDateRangeChange={handleDateRangeChange}
                 />
               </div>
 
-              {/* Project Filter */}
+              {/* Multi-Select Project Filter */}
               <FilterDropdown
                 label="All projects"
                 value={filters.projectName}
                 options={availableFilters?.available_filters.projects || []}
-                onChange={(value) => handleFilterChange('projectName', value)}
+                onChange={handleProjectChange}
                 loading={loading.filters}
                 placeholder="All projects"
+                disabled={loading.filters}
+                showSearch={true}
               />
 
-              {/* Application Filter */}
+              {/* Multi-Select Application Filter (cascading) */}
               <FilterDropdown
                 label="All applications"
                 value={filters.applicationName}
-                options={availableFilters?.available_filters.applications || []}
-                onChange={(value) => handleFilterChange('applicationName', value)}
-                loading={loading.filters}
+                options={availableApplications}
+                onChange={handleApplicationChange}
+                loading={loading.cascadingFilters}
                 placeholder="All applications"
+                disabled={loading.filters || loading.cascadingFilters}
+                showSearch={true}
               />
 
-              {/* Environment Filter - appears twice in screenshot */}
+              {/* Environment Filter (Production/Non-production only) */}
               <FilterDropdown
-                label="All projects"
+                label="Environment"
                 value={filters.environmentType}
-                options={availableFilters?.available_filters.environments || []}
-                onChange={(value) => handleFilterChange('environmentType', value)}
+                options={environmentOptions}
+                onChange={handleEnvironmentChange}
                 loading={loading.filters}
-                placeholder="All projects"
+                placeholder="All environments"
+                disabled={loading.filters}
+                showSearch={false}
+                maxSelections={2}
               />
 
-              {/* Clear Filters */}
-              {(filters.projectName || filters.applicationName || filters.environmentType) && (
+              {/* Clear Filters Button */}
+              {hasActiveFilters && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -317,7 +472,20 @@ export const DoraDashboard: React.FC = () => {
         {errors.filters && (
           <ErrorMessage
             message={`Failed to load filters: ${errors.filters}`}
-            onRetry={loadAvailableFilters}
+            onRetry={handleRetryFilters}
+          />
+        )}
+
+        {errors.cascadingFilters && (
+          <ErrorMessage
+            message={`Failed to load cascading filters: ${errors.cascadingFilters}`}
+            onRetry={() => {
+              const projectArray = Array.isArray(filters.projectName) ? filters.projectName : 
+                                  filters.projectName ? [filters.projectName] : [];
+              if (projectArray.length > 0) {
+                loadCascadingApplications(projectArray);
+              }
+            }}
           />
         )}
 
@@ -349,17 +517,15 @@ export const DoraDashboard: React.FC = () => {
             color="#3b82f6"
             loading={loading.leadTime}
             error={errors.leadTime}
-            isDuration
           />
           
           <MetricCard
             title="Time to Restore Services"
             value={metricsData.meanTimeToRestore?.summary.overall_median_hours}
-            unit="Average hours to restore services in the given period"
-            color="#8b5cf6"
+            unit="Average hours to restore services"
+            color="#f59e0b"
             loading={loading.meanTimeToRestore}
             error={errors.meanTimeToRestore}
-            isDuration
           />
         </div>
 
@@ -369,47 +535,47 @@ export const DoraDashboard: React.FC = () => {
             data={metricsData.deploymentFrequency?.data || []}
             loading={loading.deploymentFrequency}
             error={errors.deploymentFrequency}
-            onRetry={handleRetry}
           />
           
           <ChangeFailureChart
             data={metricsData.changeFailureRate?.data || []}
             loading={loading.changeFailureRate}
             error={errors.changeFailureRate}
-            onRetry={handleRetry}
           />
           
           <LeadTimeChart
             data={metricsData.leadTime?.data || []}
             loading={loading.leadTime}
             error={errors.leadTime}
-            onRetry={handleRetry}
           />
           
           <TimeToRestoreChart
             data={metricsData.meanTimeToRestore?.data || []}
             loading={loading.meanTimeToRestore}
             error={errors.meanTimeToRestore}
-            onRetry={handleRetry}
           />
         </div>
 
-        {/* Initial Loading State */}
+        {/* Loading Overlay for Initial Load */}
         {isInitialLoad && isAnyLoading && (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <LoadingSpinner className="h-8 w-8 mx-auto mb-4" />
-              <p className="text-gray-400">Loading DORA metrics...</p>
-            </div>
+          <div className="fixed inset-0 bg-gray-950 bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="bg-gray-900 border-gray-800 p-8">
+              <CardContent className="flex flex-col items-center space-y-4">
+                <LoadingSpinner className="h-8 w-8" />
+                <p className="text-gray-400">Loading DORA metrics...</p>
+              </CardContent>
+            </Card>
           </div>
         )}
-      </div>
 
-      {/* Explainer Modal */}
-      <ExplainerModal
-        open={showExplainer}
-        onClose={() => setShowExplainer(false)}
-      />
+        {/* Explainer Modal */}
+        {showExplainer && (
+          <ExplainerModal 
+            open={showExplainer}
+            onClose={() => setShowExplainer(false)} 
+          />
+        )}
+      </div>
     </div>
   );
 };
