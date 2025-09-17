@@ -8,6 +8,7 @@ import { logWithContext } from '@/utils/logger';
  */
 export interface AuthenticatedRequest extends Request {
   organizationName?: string;
+  organizationValidated?: boolean; // Track if validation already completed
   user?: {
     id: string;
     email: string;
@@ -163,4 +164,73 @@ export const validateOrganizationAccess = (
   }
 
   next();
+};
+
+/**
+ * Organization data access validation middleware
+ * Validates once per request and stores result on request object
+ */
+export const validateOrganizationDataAccess = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const organizationName = req.params.organizationName;
+
+  if (!organizationName) {
+    res.status(400).json({
+      error: true,
+      message: 'Organization name is required in URL parameters.',
+      code: 'MISSING_ORGANIZATION_PARAM',
+      timestamp: new Date().toISOString(),
+    });
+    return;
+  }
+
+  // Skip validation if already performed for this request
+  if (req.organizationValidated) {
+    next();
+    return;
+  }
+
+  try {
+    // Import here to avoid circular dependency
+    const { doraService } = await import('@/services/dora-service');
+
+    const hasAccess = await doraService.validateOrganizationAccess(organizationName);
+
+    if (!hasAccess) {
+      logWithContext.warn('Organization data access denied - no data found', organizationName, {
+        userId: req.user?.id,
+        path: req.path
+      });
+
+      res.status(404).json({
+        error: true,
+        message: 'No data found for the specified organization.',
+        code: 'ORGANIZATION_NO_DATA',
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    // Mark as validated to prevent duplicate checks
+    req.organizationValidated = true;
+
+    logWithContext.info('Organization validation completed', organizationName, {
+      userId: req.user?.id,
+      path: req.path
+    });
+
+    next();
+  } catch (error) {
+    logWithContext.error('Organization data validation failed', error as Error, organizationName);
+
+    res.status(503).json({
+      error: true,
+      message: 'Unable to validate organization access.',
+      code: 'VALIDATION_SERVICE_ERROR',
+      timestamp: new Date().toISOString(),
+    });
+  }
 };

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validateRequest, organizationParamSchema, addDefaultTimeRange, convertTimeRangeTodates, validateDateRange } from '@/middleware/validation-middleware';
 import { asyncHandler } from '@/middleware/error-middleware';
+import { validateOrganizationDataAccess } from '@/middleware/auth-middleware';
 import { doraController } from '@/controllers/dora-controller';
 
 const router = Router();
@@ -72,6 +73,7 @@ const filtersQuerySchema = z.object({
  */
 router.get(
   '/:organizationName/deployment-frequency',
+  validateOrganizationDataAccess,
   validateRequest({
     params: organizationParamSchema,
     query: commonQuerySchema,
@@ -90,6 +92,7 @@ router.get(
  */
 router.get(
   '/:organizationName/change-failure-rate',
+  validateOrganizationDataAccess,
   validateRequest({
     params: organizationParamSchema,
     query: commonQuerySchema,
@@ -108,6 +111,7 @@ router.get(
  */
 router.get(
   '/:organizationName/lead-time-for-changes',
+  validateOrganizationDataAccess,
   validateRequest({
     params: organizationParamSchema,
     query: commonQuerySchema,
@@ -126,6 +130,7 @@ router.get(
  */
 router.get(
   '/:organizationName/mean-time-to-restore',
+  validateOrganizationDataAccess,
   validateRequest({
     params: organizationParamSchema,
     query: commonQuerySchema,
@@ -144,6 +149,7 @@ router.get(
  */
 router.get(
   '/:organizationName/summary',
+  validateOrganizationDataAccess,
   validateRequest({
     params: organizationParamSchema,
     query: commonQuerySchema,
@@ -163,6 +169,7 @@ router.get(
  */
 router.get(
   '/:organizationName/filters',
+  validateOrganizationDataAccess,
   validateRequest({
     params: organizationParamSchema,
     query: filtersQuerySchema,

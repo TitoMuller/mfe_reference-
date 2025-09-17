@@ -27,7 +27,9 @@ export class DoraService {
   }): Promise<DeploymentFrequencyResponse> {
     const { organizationName, ...queryParams } = params;
 
-    logWithContext.info('Processing deployment frequency request', organizationName, { params });
+    if (process.env.LOG_LEVEL === 'debug') {
+      logWithContext.info('Processing deployment frequency request', organizationName, { params });
+    }
 
     // Get pre-aggregated data from database
     const rawData = await databricksService.getDeploymentFrequency({
@@ -92,7 +94,9 @@ export class DoraService {
   }): Promise<ChangeFailureRateResponse> {
     const { organizationName, ...queryParams } = params;
 
-    logWithContext.info('Processing change failure rate request', organizationName, { params });
+    if (process.env.LOG_LEVEL === 'debug') {
+      logWithContext.info('Processing change failure rate request', organizationName, { params });
+    }
 
     // Get pre-aggregated data from database
     const rawData = await databricksService.getChangeFailureRate({
@@ -156,7 +160,9 @@ export class DoraService {
   }): Promise<LeadTimeResponse> {
     const { organizationName, ...queryParams } = params;
 
-    logWithContext.info('Processing lead time request', organizationName, { params });
+    if (process.env.LOG_LEVEL === 'debug') {
+      logWithContext.info('Processing lead time request', organizationName, { params });
+    }
 
     // Get pre-aggregated data from database
     const rawData = await databricksService.getLeadTimeForChanges({
@@ -223,7 +229,9 @@ export class DoraService {
   }): Promise<MeanTimeToRestoreResponse> {
     const { organizationName, ...queryParams } = params;
 
-    logWithContext.info('Processing MTTR request', organizationName, { params });
+    if (process.env.LOG_LEVEL === 'debug') {
+      logWithContext.info('Processing MTTR request', organizationName, { params });
+    }
 
     // Get pre-aggregated data from database
     const rawData = await databricksService.getMeanTimeToRestore({
@@ -276,13 +284,11 @@ export class DoraService {
   }
 
   /**
-   * Validate organization access (unchanged)
+   * Validate organization access using lightweight database check
    */
   async validateOrganizationAccess(organizationName: string): Promise<boolean> {
     try {
-      // Check if organization has any data
-      const filters = await databricksService.getAvailableFilters(organizationName);
-      return filters.available_filters.projects.length > 0;
+      return await databricksService.validateOrganizationAccess(organizationName);
     } catch (error) {
       logWithContext.error('Organization validation failed', error as Error, organizationName);
       return false;
@@ -290,10 +296,32 @@ export class DoraService {
   }
 
   /**
-   * Get available filters (unchanged)
+   * Get available filters
    */
   async getAvailableFilters(organizationName: string) {
     return await databricksService.getAvailableFilters(organizationName);
+  }
+
+  /**
+   * Get applications that belong to specific projects (for cascading filters)
+   */
+  async getCascadingApplications(organizationName: string, selectedProjects: string[]): Promise<string[]> {
+    logWithContext.info('Getting cascading applications', organizationName, { selectedProjects });
+
+    try {
+      // Get applications filtered by the selected projects
+      const applications = await databricksService.getApplicationsByProjects(organizationName, selectedProjects);
+
+      logWithContext.info('Successfully retrieved cascading applications', organizationName, {
+        projectCount: selectedProjects.length,
+        applicationCount: applications.length
+      });
+
+      return applications;
+    } catch (error) {
+      logWithContext.error('Failed to get cascading applications', error as Error, organizationName);
+      throw error;
+    }
   }
 
   // Helper methods (unchanged)

@@ -1,8 +1,6 @@
 import { Request, Response } from 'express';
 import { doraService } from '@/services/dora-service';
-import { databricksService } from '@/services/databricks-service';
 import { logWithContext } from '@/utils/logger';
-import { OrganizationAccessError } from '@/middleware/error-middleware';
 
 /**
  * DoraController (Fixed to handle correct databricksService response structure)
@@ -37,38 +35,56 @@ export class DoraController {
   }
 
   /**
-   * getAvailableFilters (FIXED to handle correct response structure)
+   * getAvailableFilters (FIXED to handle cascading filters correctly)
    */
   async getAvailableFilters(req: Request, res: Response): Promise<void> {
     const organizationName = req.params.organizationName;
     const { projectName } = req.query;
 
-    logWithContext.info('Available filters endpoint called', organizationName, { 
-      cascadingProject: projectName 
+    // Convert projectName to array if needed (from route validation)
+    const selectedProjects = Array.isArray(projectName) ? projectName.map(p => String(p)) :
+                            projectName ? [String(projectName)] : [];
+
+    logWithContext.info('Available filters endpoint called', organizationName, {
+      cascadingProjects: selectedProjects,
+      isFiltered: selectedProjects.length > 0
     });
 
-    const hasAccess = await doraService.validateOrganizationAccess(organizationName);
-    if (!hasAccess) {
-      throw new OrganizationAccessError(organizationName);
-    }
+    // Validation is now handled by route-level middleware - no need to validate here
 
     try {
-      // Use databricksService directly to get the filters
-      const filtersResult = await databricksService.getAvailableFilters(organizationName);
+      // Get all available filters first (using cached service)
+      const filtersResult = await doraService.getAvailableFilters(organizationName);
 
-      // FIXED: The databricksService returns { organization_name, available_filters: {...} }
-      // We should return the databricksService response directly, just add timestamp
+      // If projects are selected, filter applications to only those belonging to selected projects
+      let filteredApplications = filtersResult.available_filters.applications;
+
+      if (selectedProjects.length > 0) {
+        // Get applications that belong to the selected projects
+        const cascadingFilters = await doraService.getCascadingApplications(
+          organizationName,
+          selectedProjects
+        );
+        filteredApplications = cascadingFilters;
+      }
+
+      // Build response with filtered applications
       const response = {
-        ...filtersResult, // This already has organization_name and available_filters
+        organization_name: organizationName,
+        available_filters: {
+          projects: filtersResult.available_filters.projects,
+          applications: filteredApplications,
+          environments: filtersResult.available_filters.environments,
+        },
         timestamp: new Date().toISOString(),
       };
 
       logWithContext.info('Available filters request completed', organizationName, {
         projectCount: response.available_filters.projects?.length || 0,
-        applicationCount: response.available_filters.applications?.length || 0, 
+        applicationCount: response.available_filters.applications?.length || 0,
         environmentCount: response.available_filters.environments?.length || 0,
-        cascadingProject: projectName,
-        isFiltered: !!projectName
+        cascadingProjects: selectedProjects,
+        isFiltered: selectedProjects.length > 0
       });
 
       res.json(response);
@@ -94,10 +110,7 @@ export class DoraController {
       }
     });
 
-    const hasAccess = await doraService.validateOrganizationAccess(organizationName);
-    if (!hasAccess) {
-      throw new OrganizationAccessError(organizationName);
-    }
+    // Validation is now handled by route-level middleware
 
     try {
       // Normalize parameters for existing service
@@ -135,10 +148,7 @@ export class DoraController {
       }
     });
 
-    const hasAccess = await doraService.validateOrganizationAccess(organizationName);
-    if (!hasAccess) {
-      throw new OrganizationAccessError(organizationName);
-    }
+    // Validation is now handled by route-level middleware
 
     try {
       // Normalize parameters for existing service
@@ -177,10 +187,7 @@ export class DoraController {
       }
     });
 
-    const hasAccess = await doraService.validateOrganizationAccess(organizationName);
-    if (!hasAccess) {
-      throw new OrganizationAccessError(organizationName);
-    }
+    // Validation is now handled by route-level middleware
 
     try {
       // Normalize parameters for existing service
@@ -218,10 +225,7 @@ export class DoraController {
       }
     });
 
-    const hasAccess = await doraService.validateOrganizationAccess(organizationName);
-    if (!hasAccess) {
-      throw new OrganizationAccessError(organizationName);
-    }
+    // Validation is now handled by route-level middleware
 
     try {
       // Normalize parameters for existing service
@@ -259,10 +263,7 @@ export class DoraController {
       }
     });
 
-    const hasAccess = await doraService.validateOrganizationAccess(organizationName);
-    if (!hasAccess) {
-      throw new OrganizationAccessError(organizationName);
-    }
+    // Validation is now handled by route-level middleware
 
     try {
       // Normalize parameters for existing service
@@ -323,16 +324,17 @@ export class DoraController {
   }
 
   /**
-   * getOrganizationHealth (FIXED to handle correct filters structure)
+   * getOrganizationHealth (OPTIMIZED to use cached validation)
    */
   async getOrganizationHealth(req: Request, res: Response): Promise<void> {
     const organizationName = req.params.organizationName;
     logWithContext.info('Organization health check endpoint called', organizationName);
 
     try {
+      // Use cached validation (will be quick if already called in middleware)
       const hasAccess = await doraService.validateOrganizationAccess(organizationName);
       // FIXED: Handle the correct response structure from databricksService
-      const filtersResult = hasAccess ? await databricksService.getAvailableFilters(organizationName) : null;
+      const filtersResult = hasAccess ? await doraService.getAvailableFilters(organizationName) : null;
 
       const healthStatus = {
         organization_name: organizationName,

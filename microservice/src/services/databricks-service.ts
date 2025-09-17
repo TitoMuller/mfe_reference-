@@ -29,7 +29,9 @@ export class DatabricksService {
     } = params;
 
     try {
-      logWithContext.info('Fetching deployment frequency data with basic SQL aggregation', organizationName, { params });
+      if (process.env.LOG_LEVEL === 'debug') {
+        logWithContext.info('Fetching deployment frequency data with basic SQL aggregation', organizationName, { params });
+      }
 
       // Build WHERE conditions
       const whereConditions = ['organization_name = ?'];
@@ -340,7 +342,7 @@ export class DatabricksService {
           WHERE organization_name = ? 
             AND project_name IS NOT NULL
           ORDER BY project_name
-        `, [organizationName], organizationName),
+        `, [organizationName], organizationName, 'filter_query'),
 
         this.executeQueryWithParams(`
           SELECT DISTINCT application_name 
@@ -348,7 +350,7 @@ export class DatabricksService {
           WHERE organization_name = ? 
             AND application_name IS NOT NULL
           ORDER BY application_name
-        `, [organizationName], organizationName),
+        `, [organizationName], organizationName, 'filter_query'),
 
         this.executeQueryWithParams(`
           SELECT DISTINCT environment_type 
@@ -356,7 +358,7 @@ export class DatabricksService {
           WHERE organization_name = ? 
             AND environment_type IS NOT NULL
           ORDER BY environment_type
-        `, [organizationName], organizationName),
+        `, [organizationName], organizationName, 'filter_query'),
       ]);
 
       const result = {
@@ -384,23 +386,28 @@ export class DatabricksService {
   }
 
   /**
-   * Helper method to execute queries with positional parameters
+   * Helper method to execute queries with positional parameters (OPTIMIZED logging)
    */
   private async executeQueryWithParams<T = any>(
-    sql: string, 
-    params: any[], 
-    organizationName: string
+    sql: string,
+    params: any[],
+    organizationName: string,
+    queryType: 'lightweight_check' | 'data_query' | 'filter_query' = 'data_query'
   ): Promise<T[]> {
-    // Replace ? placeholders with actual values for logging
-    let logSql = sql;
-    params.forEach((param, index) => {
-      logSql = logSql.replace('?', `'${param}'`);
-    });
+    // Only log detailed SQL in debug mode to reduce log volume
+    if (process.env.LOG_LEVEL === 'debug' || queryType === 'lightweight_check') {
+      // Replace ? placeholders with actual values for logging
+      let logSql = sql;
+      params.forEach((param, index) => {
+        logSql = logSql.replace('?', `'${param}'`);
+      });
 
-    logWithContext.info('Executing parameterized query', organizationName, {
-      sqlPreview: logSql.substring(0, 200) + (logSql.length > 200 ? '...' : ''),
-      paramCount: params.length,
-    });
+      logWithContext.info('Executing parameterized query', organizationName, {
+        queryType,
+        sqlPreview: logSql.substring(0, 100) + (logSql.length > 100 ? '...' : ''),
+        paramCount: params.length,
+      });
+    }
 
     // For now, we'll use simple string replacement instead of parameterized queries
     // This is safe since we control the input values
@@ -410,6 +417,82 @@ export class DatabricksService {
     });
 
     return await databricksConnection.executeQuery(finalSql, organizationName);
+  }
+
+  /**
+   * OPTIMIZED: Lightweight organization validation (replaces expensive getAvailableFilters call)
+   * Uses a simple EXISTS query instead of fetching all filter data
+   */
+  async validateOrganizationAccess(organizationName: string): Promise<boolean> {
+    try {
+      logWithContext.info('Validating organization access', organizationName, {
+        queryType: 'lightweight_check'
+      });
+
+      const sql = `
+        SELECT 1
+        FROM deployment_frequency
+        WHERE organization_name = ?
+        LIMIT 1
+      `;
+
+      const results = await this.executeQueryWithParams(sql, [organizationName], organizationName, 'lightweight_check');
+      const hasAccess = results.length > 0;
+
+      logWithContext.info('Organization validation completed', organizationName, {
+        hasAccess,
+        queryType: 'lightweight_check'
+      });
+
+      return hasAccess;
+
+    } catch (error) {
+      logWithContext.error('Organization validation failed', error as Error, organizationName, {
+        queryType: 'lightweight_check'
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Get applications that belong to specific projects (for cascading filters)
+   */
+  async getApplicationsByProjects(organizationName: string, selectedProjects: string[]): Promise<string[]> {
+    try {
+      logWithContext.info('Fetching applications for selected projects', organizationName, { selectedProjects });
+
+      if (selectedProjects.length === 0) {
+        return [];
+      }
+
+      // Build IN clause for selected projects
+      const projectPlaceholders = selectedProjects.map(() => '?').join(', ');
+      const sql = `
+        SELECT DISTINCT application_name
+        FROM deployment_frequency
+        WHERE organization_name = ?
+          AND project_name IN (${projectPlaceholders})
+          AND application_name IS NOT NULL
+        ORDER BY application_name
+      `;
+
+      const queryParams = [organizationName, ...selectedProjects];
+      const results = await this.executeQueryWithParams(sql, queryParams, organizationName, 'filter_query');
+
+      const applications = results.map(row => row.application_name);
+
+      logWithContext.info('Successfully fetched cascading applications', organizationName, {
+        projectCount: selectedProjects.length,
+        applicationCount: applications.length
+      });
+
+      return applications;
+
+    } catch (error) {
+      logWithContext.error('Failed to fetch applications by projects', error as Error, organizationName);
+      handleDatabaseError(error as Error, 'cascading applications query');
+      throw error;
+    }
   }
 }
 
