@@ -1,0 +1,32 @@
+{
+  "name": "dora-metrics",
+  "version": "1.0.0",
+  "description": "DORA Metrics - Microservice and Frontend",
+  "private": true,
+  "workspaces": [
+    "microservice",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:frontend\"",
+    "dev:api": "cd microservice && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:api && npm run build:frontend",
+    "build:api": "cd microservice && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "test": "npm run test:api && npm run test:frontend",
+    "test:api": "cd microservice && npm test",
+    "test:frontend": "cd frontend && npm test",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:build": "docker-compose build",
+    "install:all": "npm install && cd microservice && npm install && cd ../frontend && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
