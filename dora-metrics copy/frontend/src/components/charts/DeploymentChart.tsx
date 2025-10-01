@@ -13,13 +13,7 @@ interface DeploymentChartProps {
 
 /**
  * DeploymentChart Component
- * 
- * PRODUCTION VERSION: Uses backend SQL aggregation
- * - Data comes pre-aggregated by date from the microservice
- * - No complex frontend aggregation needed
- * - Enhanced tooltips show aggregation context
- * - Much better performance for large datasets
- */
+**/
 export const DeploymentChart: React.FC<DeploymentChartProps> = ({
   data,
   loading,

@@ -6,20 +6,20 @@ export interface DateRange {
 }
 
 /**
- * DashboardFilters (FIXED to support both single values and arrays)
+ * DashboardFilters 
  * Maintains backward compatibility while enabling multi-select
  */
 export interface DashboardFilters {
   timeRange?: '7d' | '30d' | '90d' | '1y';
   startDate?: string;
   endDate?: string;
-  projectName?: string | string[];        // Now supports both single and multi-select
-  applicationName?: string | string[];    // Now supports both single and multi-select  
-  environmentType?: string | string[];    // Now supports both single and multi-select
+  projectName?: string | string[];        
+  applicationName?: string | string[];      
+  environmentType?: string | string[];    
 }
 
 /**
- * BaseQueryParams (FIXED to support arrays)
+ * BaseQueryParams 
  */
 export interface BaseQueryParams {
   organizationName: string;
@@ -31,7 +31,6 @@ export interface BaseQueryParams {
   timeRange?: '7d' | '30d' | '90d' | '1y';
 }
 
-// Re-export all existing response types (unchanged)
 export interface DeploymentFrequencyData {
   date: string;
   organization_name: string;
@@ -133,7 +132,7 @@ export interface MeanTimeToRestoreResponse {
   };
 }
 
-// Filters Types (unchanged)
+// Filters Types 
 export interface FiltersResponse {
   organization_name: string;
   available_filters: {
@@ -144,7 +143,7 @@ export interface FiltersResponse {
   timestamp: string;
 }
 
-// Dashboard and UI Types (unchanged except for DashboardFilters above)
+// Dashboard and UI Types 
 export interface LoadingState {
   deploymentFrequency: boolean;
   changeFailureRate: boolean;
@@ -169,13 +168,13 @@ export interface ApiError extends Error {
 }
 
 /**
- * Environment Filter Values (NEW - for the environment filter requirement)
+ * Environment Filter Values 
  * These are the exact values that should appear in the Environment filter
  */
 export type EnvironmentType = 'Production' | 'Non-Production';
 
 /**
- * Helper function to normalize filter values to arrays (NEW)
+ * Helper function to normalize filter values to arrays 
  * Helps convert single values to arrays for consistent handling
  */
 export const normalizeFilterValue = (value: string | string[] | undefined): string[] => {
@@ -184,7 +183,7 @@ export const normalizeFilterValue = (value: string | string[] | undefined): stri
 };
 
 /**
- * Helper function to check if environment filter should include all (NEW)
+ * Helper function to check if environment filter should include all 
  * According to spec: empty selection behaves same as selecting both
  */
 export const shouldIncludeAllEnvironments = (environmentFilters: string | string[] | undefined): boolean => {
@@ -193,7 +192,7 @@ export const shouldIncludeAllEnvironments = (environmentFilters: string | string
 };
 
 /**
- * Helper function to get effective environment filter for API calls (NEW)
+ * Helper function to get effective environment filter for API calls 
  * Implements the logic: empty selection = both Production and Non-Production
  */
 export const getEffectiveEnvironmentFilter = (environmentFilters: string | string[] | undefined): string[] => {
@@ -204,7 +203,7 @@ export const getEffectiveEnvironmentFilter = (environmentFilters: string | strin
 };
 
 /**
- * Helper function to check if any filters are applied (NEW)
+ * Helper function to check if any filters are applied 
  */
 export const hasActiveFilters = (filters: DashboardFilters): boolean => {
   const projectArray = normalizeFilterValue(filters.projectName);
@@ -215,7 +214,7 @@ export const hasActiveFilters = (filters: DashboardFilters): boolean => {
 };
 
 /**
- * Helper function to get filter display text (NEW)
+ * Helper function to get filter display text 
  * Used for showing user-friendly filter summaries
  */
 export const getFilterDisplayText = (filterValue: string | string[] | undefined, allLabel: string = 'All'): string => {

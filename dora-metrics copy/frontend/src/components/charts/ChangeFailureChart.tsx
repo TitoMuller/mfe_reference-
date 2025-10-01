@@ -13,13 +13,7 @@ interface ChangeFailureChartProps {
 
 /**
  * ChangeFailureChart Component
- * 
- * PRODUCTION VERSION: Uses backend SQL aggregation
- * - Data comes pre-aggregated by date from the microservice
- * - Simple clean X-axis with preserveStartEnd and tickCount
- * - Enhanced tooltips show aggregation context
- * - Much better performance for large datasets
- */
+**/
 export const ChangeFailureChart: React.FC<ChangeFailureChartProps> = ({
   data,
   loading,

@@ -1,4 +1,3 @@
-// src/config/database.ts
 import { DBSQLClient } from '@databricks/sql';
 import { config } from './environment';
 import { logger, logWithContext } from '@/utils/logger';

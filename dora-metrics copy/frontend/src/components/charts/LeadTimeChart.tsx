@@ -13,13 +13,7 @@ interface LeadTimeChartProps {
 
 /**
  * LeadTimeChart Component
- * 
- * PRODUCTION VERSION: Uses backend SQL aggregation
- * - Data comes pre-aggregated by date from the microservice
- * - Clean X-axis with preserveStartEnd and tickCount
- * - Enhanced tooltips show aggregation context
- * - Compatible with new aggregated data structure
- */
+**/
 export const LeadTimeChart: React.FC<LeadTimeChartProps> = ({
   data,
   loading,

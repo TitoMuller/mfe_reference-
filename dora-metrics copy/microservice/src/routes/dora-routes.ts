@@ -7,15 +7,6 @@ import { doraController } from '@/controllers/dora-controller';
 
 const router = Router();
 
-/**
- * Common Query Schema (FIXED to support multi-select arrays)
- * 
- * Key fixes:
- * 1. All filter fields now accept both single values and arrays
- * 2. Environment filter validates against exact database values
- * 3. Proper transformation of single values to arrays
- * 4. Maintains backward compatibility with existing single-value calls
- */
 const commonQuerySchema = z.object({
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
@@ -51,7 +42,7 @@ const commonQuerySchema = z.object({
 });
 
 /**
- * Filters Query Schema (FIXED for cascading behavior)
+ * Filters Query Schema 
  * Used for the /filters endpoint to support cascading
  */
 const filtersQuerySchema = z.object({
@@ -67,7 +58,7 @@ const filtersQuerySchema = z.object({
 
 /**
  * @route   GET /api/v1/dora/:organizationName/deployment-frequency
- * @desc    Get deployment frequency metrics (FIXED for multi-select)
+ * @desc    Get deployment frequency metrics 
  * @access  Private (requires authentication)
  * @example GET /api/v1/dora/my-org/deployment-frequency?projectName=proj1&projectName=proj2
  */
@@ -86,7 +77,7 @@ router.get(
 
 /**
  * @route   GET /api/v1/dora/:organizationName/change-failure-rate
- * @desc    Get change failure rate metrics (FIXED for multi-select)
+ * @desc    Get change failure rate metrics
  * @access  Private (requires authentication)
  * @example GET /api/v1/dora/my-org/change-failure-rate?applicationName=app1&applicationName=app2
  */
@@ -105,7 +96,7 @@ router.get(
 
 /**
  * @route   GET /api/v1/dora/:organizationName/lead-time-for-changes
- * @desc    Get lead time for changes metrics (FIXED for multi-select)
+ * @desc    Get lead time for changes metrics
  * @access  Private (requires authentication)
  * @example GET /api/v1/dora/my-org/lead-time-for-changes?environmentType=Production&environmentType=Non-Production
  */
@@ -124,7 +115,7 @@ router.get(
 
 /**
  * @route   GET /api/v1/dora/:organizationName/mean-time-to-restore
- * @desc    Get mean time to restore metrics (FIXED for multi-select)
+ * @desc    Get mean time to restore metrics
  * @access  Private (requires authentication)
  * @example GET /api/v1/dora/my-org/mean-time-to-restore?projectName=critical-proj
  */
@@ -143,7 +134,7 @@ router.get(
 
 /**
  * @route   GET /api/v1/dora/:organizationName/summary
- * @desc    Get all DORA metrics in a single request (FIXED for multi-select)
+ * @desc    Get all DORA metrics in a single request
  * @access  Private (requires authentication)
  * @example GET /api/v1/dora/my-org/summary?projectName=proj1&applicationName=app1&environmentType=Production
  */
@@ -162,7 +153,7 @@ router.get(
 
 /**
  * @route   GET /api/v1/dora/:organizationName/filters
- * @desc    Get available filter options (FIXED for cascading support)
+ * @desc    Get available filter options 
  * @access  Private (requires authentication)
  * @example GET /api/v1/dora/my-org/filters - Get all filters
  * @example GET /api/v1/dora/my-org/filters?projectName=proj1 - Get applications for proj1
@@ -195,7 +186,7 @@ router.get(
 export { router as doraRoutes };
 
 /**
- * FIXED API Documentation
+ * API Documentation
  * 
  * Multi-Select Query Parameters:
  * All filter parameters now support both single values and arrays:
@@ -233,7 +224,7 @@ export { router as doraRoutes };
  * - Both values: ?environmentType=Production&environmentType=Non-Production = include both
  * - Values must be exactly "Production" or "Non-Production" (case-sensitive)
  * 
- * FIXED Response Format:
+ * Response Format:
  * ```json
  * {
  *   "metric": "deployment_frequency",
@@ -269,6 +260,5 @@ export { router as doraRoutes };
  * 
  * Backward Compatibility:
  * - All existing single-value API calls continue to work unchanged
- * - Response format remains the same
- * - New multi-select functionality is additive, not breaking
+ * - Response format remains the safunctionality is additive, not breaking
  */

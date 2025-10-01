@@ -11,12 +11,10 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * Date utilities for DORA metrics dashboard
- * FIXED: Now correctly handles UTC dates without timezone shifts
  */
 export const dateUtils = {
   /**
    * Format date for display in charts and UI
-   * FIXED: Now properly handles UTC dates to prevent day shifts
    */
   formatChartDate: (dateString: string): string => {
     try {

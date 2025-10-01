@@ -4,18 +4,42 @@ import { handleDatabaseError } from '@/middleware/error-middleware';
 
 export class DatabricksService {
   /**
-   * SIMPLIFIED: Get deployment frequency with basic SQL aggregation
-   * 
-   * This version uses only basic SQL functions that are guaranteed to work
-   * in all Databricks environments.
+   * Helper to build WHERE clause for potentially array values
+   * Handles both single values and arrays, generating appropriate SQL
+   */
+  private buildWhereClause(
+    field: string,
+    value: string | string[] | undefined,
+    whereConditions: string[],
+    queryParams: any[]
+  ): void {
+    if (!value) return;
+
+    // Handle array values (multi-select)
+    if (Array.isArray(value)) {
+      if (value.length === 0) return;
+      
+      const placeholders = value.map(() => '?').join(', ');
+      whereConditions.push(`${field} IN (${placeholders})`);
+      queryParams.push(...value);
+    } 
+    // Handle single values (backward compatibility)
+    else {
+      whereConditions.push(`${field} = ?`);
+      queryParams.push(value);
+    }
+  }
+
+  /**
+   * Get deployment frequency with basic SQL aggregation
    */
   async getDeploymentFrequency(params: {
     organizationName: string;
     startDate?: string;
     endDate?: string;
-    projectName?: string;
-    applicationName?: string;
-    environmentType?: string;
+    projectName?: string | string[];
+    applicationName?: string | string[];
+    environmentType?: string | string[];
     aggregation?: 'daily' | 'weekly' | 'monthly';
   }) {
     const { 
@@ -33,13 +57,12 @@ export class DatabricksService {
         logWithContext.info('Fetching deployment frequency data with basic SQL aggregation', organizationName, { params });
       }
 
-      // Build WHERE conditions
       const whereConditions = ['organization_name = ?'];
       const queryParams: any[] = [organizationName];
 
       if (startDate) {
         whereConditions.push('deployment_date >= ?');
-        queryParams.push(startDate.split('T')[0]); // Convert to YYYY-MM-DD
+        queryParams.push(startDate.split('T')[0]);
       }
 
       if (endDate) {
@@ -47,22 +70,11 @@ export class DatabricksService {
         queryParams.push(endDate.split('T')[0]);
       }
 
-      if (projectName) {
-        whereConditions.push('project_name = ?');
-        queryParams.push(projectName);
-      }
+      // Use helper for multi-select support
+      this.buildWhereClause('project_name', projectName, whereConditions, queryParams);
+      this.buildWhereClause('application_name', applicationName, whereConditions, queryParams);
+      this.buildWhereClause('environment_type', environmentType, whereConditions, queryParams);
 
-      if (applicationName) {
-        whereConditions.push('application_name = ?');
-        queryParams.push(applicationName);
-      }
-
-      if (environmentType) {
-        whereConditions.push('environment_type = ?');
-        queryParams.push(environmentType);
-      }
-
-      // SIMPLIFIED: Basic SQL aggregation by date only
       const sql = `
         SELECT 
           deployment_date,
@@ -74,7 +86,6 @@ export class DatabricksService {
         ORDER BY deployment_date ASC
       `;
 
-      // Execute with positional parameters
       const results = await this.executeQueryWithParams(sql, queryParams, organizationName);
 
       logWithContext.info('Successfully fetched aggregated deployment frequency data', organizationName, {
@@ -93,15 +104,15 @@ export class DatabricksService {
   }
 
   /**
-   * SIMPLIFIED: Get change failure rate with basic SQL aggregation
+   * Get change failure rate with basic SQL aggregation
    */
   async getChangeFailureRate(params: {
     organizationName: string;
     startDate?: string;
     endDate?: string;
-    projectName?: string;
-    applicationName?: string;
-    environmentType?: string;
+    projectName?: string | string[];
+    applicationName?: string | string[];
+    environmentType?: string | string[];
   }) {
     const { organizationName, startDate, endDate, projectName, applicationName, environmentType } = params;
 
@@ -121,29 +132,17 @@ export class DatabricksService {
         queryParams.push(endDate.split('T')[0]);
       }
 
-      if (projectName) {
-        whereConditions.push('project_name = ?');
-        queryParams.push(projectName);
-      }
+      // Use helper for multi-select support
+      this.buildWhereClause('project_name', projectName, whereConditions, queryParams);
+      this.buildWhereClause('application_name', applicationName, whereConditions, queryParams);
+      this.buildWhereClause('environment_type', environmentType, whereConditions, queryParams);
 
-      if (applicationName) {
-        whereConditions.push('application_name = ?');
-        queryParams.push(applicationName);
-      }
-
-      if (environmentType) {
-        whereConditions.push('environment_type = ?');
-        queryParams.push(environmentType);
-      }
-
-      // SIMPLIFIED: Basic SQL aggregation for failure rates
       const sql = `
         SELECT 
           deployment_date,
           organization_name,
           SUM(total_deployments) as total_deployments,
           SUM(failed_deployments) as failed_deployments,
-          -- Calculate failure rate at the aggregated level
           CASE 
             WHEN SUM(total_deployments) > 0 
             THEN CAST(SUM(failed_deployments) AS DOUBLE) / CAST(SUM(total_deployments) AS DOUBLE)
@@ -173,15 +172,15 @@ export class DatabricksService {
   }
 
   /**
-   * SIMPLIFIED: Get lead time with basic SQL aggregation
+   * Get lead time with basic SQL aggregation
    */
   async getLeadTimeForChanges(params: {
     organizationName: string;
     startDate?: string;
     endDate?: string;
-    projectName?: string;
-    applicationName?: string;
-    environmentType?: string;
+    projectName?: string | string[];
+    applicationName?: string | string[];
+    environmentType?: string | string[];
   }) {
     const { organizationName, startDate, endDate, projectName, applicationName, environmentType } = params;
 
@@ -201,33 +200,21 @@ export class DatabricksService {
         queryParams.push(endDate.split('T')[0]);
       }
 
-      if (projectName) {
-        whereConditions.push('project_name = ?');
-        queryParams.push(projectName);
-      }
+      // Use helper for multi-select support
+      this.buildWhereClause('project_name', projectName, whereConditions, queryParams);
+      this.buildWhereClause('application_name', applicationName, whereConditions, queryParams);
+      this.buildWhereClause('environment_type', environmentType, whereConditions, queryParams);
 
-      if (applicationName) {
-        whereConditions.push('application_name = ?');
-        queryParams.push(applicationName);
-      }
-
-      if (environmentType) {
-        whereConditions.push('environment_type = ?');
-        queryParams.push(environmentType);
-      }
-
-      // SIMPLIFIED: Use AVG for lead time calculation (simpler than percentile)
       const sql = `
         SELECT 
           deployment_date,
           organization_name,
-          -- Calculate average lead time for this date (simpler than median)
           AVG(median_lead_time_hours) as median_lead_time_hours,
           AVG(median_lead_time_hours) / 24.0 as lead_time_days,
           COUNT(*) as change_count
         FROM lead_time_for_changes
         WHERE ${whereConditions.join(' AND ')}
-          AND median_lead_time_hours > 0  -- Exclude invalid/zero lead times
+          AND median_lead_time_hours > 0
         GROUP BY deployment_date, organization_name
         ORDER BY deployment_date ASC
       `;
@@ -251,15 +238,15 @@ export class DatabricksService {
   }
 
   /**
-   * SIMPLIFIED: Get mean time to restore with basic SQL aggregation
+   * Get mean time to restore with basic SQL aggregation
    */
   async getMeanTimeToRestore(params: {
     organizationName: string;
     startDate?: string;
     endDate?: string;
-    projectName?: string;
-    applicationName?: string;
-    environmentType?: string;
+    projectName?: string | string[];
+    applicationName?: string | string[];
+    environmentType?: string | string[];
   }) {
     const { organizationName, startDate, endDate, projectName, applicationName, environmentType } = params;
 
@@ -279,32 +266,20 @@ export class DatabricksService {
         queryParams.push(endDate.split('T')[0]);
       }
 
-      if (projectName) {
-        whereConditions.push('project_name = ?');
-        queryParams.push(projectName);
-      }
+      // Use helper for multi-select support
+      this.buildWhereClause('project_name', projectName, whereConditions, queryParams);
+      this.buildWhereClause('application_name', applicationName, whereConditions, queryParams);
+      this.buildWhereClause('environment_type', environmentType, whereConditions, queryParams);
 
-      if (applicationName) {
-        whereConditions.push('application_name = ?');
-        queryParams.push(applicationName);
-      }
-
-      if (environmentType) {
-        whereConditions.push('environment_type = ?');
-        queryParams.push(environmentType);
-      }
-
-      // SIMPLIFIED: Use AVG for restore time calculation and correct column name
       const sql = `
         SELECT 
           deployment_date,
           organization_name,
-          -- Calculate average restore time for this date (simpler than median)
           AVG(median_hours_to_restore) as median_hours_to_restore,
           COUNT(*) as incident_count
         FROM mean_time_to_restore
         WHERE ${whereConditions.join(' AND ')}
-          AND median_hours_to_restore > 0  -- Exclude invalid restore times
+          AND median_hours_to_restore > 0
         GROUP BY deployment_date, organization_name
         ORDER BY deployment_date ASC
       `;
@@ -328,13 +303,12 @@ export class DatabricksService {
   }
 
   /**
-   * Get available filters (simplified)
+   * Get available filters 
    */
   async getAvailableFilters(organizationName: string) {
     try {
       logWithContext.info('Fetching available filters', organizationName);
 
-      // Use simple queries without advanced functions
       const [projectsQuery, applicationsQuery, environmentsQuery] = await Promise.all([
         this.executeQueryWithParams(`
           SELECT DISTINCT project_name 
@@ -386,42 +360,7 @@ export class DatabricksService {
   }
 
   /**
-   * Helper method to execute queries with positional parameters (OPTIMIZED logging)
-   */
-  private async executeQueryWithParams<T = any>(
-    sql: string,
-    params: any[],
-    organizationName: string,
-    queryType: 'lightweight_check' | 'data_query' | 'filter_query' = 'data_query'
-  ): Promise<T[]> {
-    // Only log detailed SQL in debug mode to reduce log volume
-    if (process.env.LOG_LEVEL === 'debug' || queryType === 'lightweight_check') {
-      // Replace ? placeholders with actual values for logging
-      let logSql = sql;
-      params.forEach((param, index) => {
-        logSql = logSql.replace('?', `'${param}'`);
-      });
-
-      logWithContext.info('Executing parameterized query', organizationName, {
-        queryType,
-        sqlPreview: logSql.substring(0, 100) + (logSql.length > 100 ? '...' : ''),
-        paramCount: params.length,
-      });
-    }
-
-    // For now, we'll use simple string replacement instead of parameterized queries
-    // This is safe since we control the input values
-    let finalSql = sql;
-    params.forEach((param, index) => {
-      finalSql = finalSql.replace('?', `'${param}'`);
-    });
-
-    return await databricksConnection.executeQuery(finalSql, organizationName);
-  }
-
-  /**
-   * OPTIMIZED: Lightweight organization validation (replaces expensive getAvailableFilters call)
-   * Uses a simple EXISTS query instead of fetching all filter data
+   * Lightweight organization validation
    */
   async validateOrganizationAccess(organizationName: string): Promise<boolean> {
     try {
@@ -465,7 +404,6 @@ export class DatabricksService {
         return [];
       }
 
-      // Build IN clause for selected projects
       const projectPlaceholders = selectedProjects.map(() => '?').join(', ');
       const sql = `
         SELECT DISTINCT application_name
@@ -493,6 +431,37 @@ export class DatabricksService {
       handleDatabaseError(error as Error, 'cascading applications query');
       throw error;
     }
+  }
+
+  /**
+   * Helper method to execute queries with positional parameters
+   */
+  private async executeQueryWithParams<T = any>(
+    sql: string,
+    params: any[],
+    organizationName: string,
+    queryType: 'lightweight_check' | 'data_query' | 'filter_query' = 'data_query'
+  ): Promise<T[]> {
+    if (process.env.LOG_LEVEL === 'debug' || queryType === 'lightweight_check') {
+      let logSql = sql;
+      params.forEach((param) => {
+        logSql = logSql.replace('?', `'${param}'`);
+      });
+
+      logWithContext.info('Executing parameterized query', organizationName, {
+        queryType,
+        sqlPreview: logSql.substring(0, 100) + (logSql.length > 100 ? '...' : ''),
+        paramCount: params.length,
+      });
+    }
+
+    // Replace ? with actual values (safe since we control inputs via Zod validation)
+    let finalSql = sql;
+    params.forEach((param) => {
+      finalSql = finalSql.replace('?', `'${param}'`);
+    });
+
+    return await databricksConnection.executeQuery(finalSql, organizationName);
   }
 }
 

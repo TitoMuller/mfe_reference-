@@ -53,11 +53,6 @@ export interface MeanTimeToRestoreRow {
   deployedAt: string;              // timestamp
 }
 
-/**
- * NEW: Aggregated database result interfaces
- * These represent what our SQL queries with GROUP BY return
- */
-
 // Result from aggregated deployment frequency query
 export interface AggregatedDeploymentFrequencyRow {
   deployment_date: string;
@@ -113,7 +108,7 @@ export interface AggregatedMeanTimeToRestoreRow {
 }
 
 /**
- * API Request/Response Types - UPDATED for production aggregation
+ * API Request/Response Types
  */
 
 // Common query parameters validation schema (unchanged)
@@ -144,7 +139,6 @@ export const meanTimeToRestoreQuerySchema = baseQuerySchema.extend({
   includeOutliers: z.boolean().default(false),
 });
 
-// ENHANCED: API Response types with aggregation context
 export interface DeploymentFrequencyResponse {
   metric: 'deployment_frequency';
   data: Array<{
@@ -152,7 +146,6 @@ export interface DeploymentFrequencyResponse {
     organization_name: string;
     deployment_count: number;
     daily_average?: number;
-    // NEW: Aggregation context from backend SQL
     project_count?: number;
     application_count?: number;
     environment_count?: number;
@@ -180,7 +173,6 @@ export interface ChangeFailureRateResponse {
     total_deployments: number;
     failed_deployments: number;
     failure_rate_percent: number;
-    // NEW: Aggregation context from backend SQL
     project_count?: number;
     application_count?: number;
     projects?: string[];
@@ -207,7 +199,6 @@ export interface LeadTimeResponse {
     organization_name: string;
     median_lead_time_hours: number;
     lead_time_days: number;
-    // NEW: Aggregation context from backend SQL
     change_count?: number;
     project_count?: number;
     application_count?: number;
@@ -234,7 +225,6 @@ export interface MeanTimeToRestoreResponse {
     date: string;
     organization_name: string;
     median_hours_to_restore: number;
-    // NEW: Aggregation context from backend SQL
     incident_count?: number;
     project_count?: number;
     application_count?: number;
@@ -254,7 +244,7 @@ export interface MeanTimeToRestoreResponse {
   };
 }
 
-// Combined DORA metrics response (enhanced)
+// Combined DORA metrics response 
 export interface DoraMetricsResponse {
   organization_name: string;
   date_range: {
@@ -265,7 +255,6 @@ export interface DoraMetricsResponse {
     deployment_frequency: {
       average_per_day: number;
       total_deployments: number;
-      // NEW: Context about data aggregation
       unique_projects: number;
       unique_applications: number;
     };
@@ -288,7 +277,7 @@ export interface DoraMetricsResponse {
   filters_applied: Record<string, any>;
 }
 
-// Error response type (unchanged)
+// Error response type 
 export interface ApiErrorResponse {
   error: true;
   message: string;
@@ -297,7 +286,7 @@ export interface ApiErrorResponse {
   timestamp: string;
 }
 
-// Health check response (unchanged)
+// Health check response 
 export interface HealthCheckResponse {
   status: 'healthy' | 'degraded' | 'unhealthy';
   timestamp: string;
@@ -314,7 +303,6 @@ export interface HealthCheckResponse {
   };
 }
 
-// NEW: Available filters response (for dropdown populations)
 export interface FiltersResponse {
   organization_name: string;
   available_filters: {

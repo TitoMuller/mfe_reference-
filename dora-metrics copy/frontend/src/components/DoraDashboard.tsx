@@ -1,6 +1,3 @@
-// frontend/src/components/DoraDashboard.tsx
-// FIXED: All TypeScript errors resolved, using existing API methods
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Info } from 'lucide-react';
 import { Button, Card, CardContent, LoadingSpinner, ErrorMessage } from '@/components/ui';
@@ -44,9 +41,9 @@ export const DoraDashboard: React.FC = () => {
   const [availableFilters, setAvailableFilters] = useState<FiltersResponse | null>(null);
   const [availableApplications, setAvailableApplications] = useState<string[]>([]);
 
-  // Filter state - Fixed to properly handle timeRange type
+  // Filter state 
   const [filters, setFilters] = useState<DashboardFilters>({
-    timeRange: '30d' as '30d',  // Explicitly typed
+    timeRange: '1y' as '1y',  
     projectName: undefined,
     applicationName: undefined,
     environmentType: undefined,
@@ -54,7 +51,7 @@ export const DoraDashboard: React.FC = () => {
 
   // Staged filters: edits live here until the user clicks Apply
   const [stagedFilters, setStagedFilters] = useState<DashboardFilters>({
-    timeRange: '30d' as '30d',
+    timeRange: '1y' as '1y',
     projectName: undefined,
     applicationName: undefined,
     environmentType: undefined,
@@ -123,7 +120,6 @@ export const DoraDashboard: React.FC = () => {
 
   /**
    * Load available filters from API
-   * FIXED: Using the correct method name 'getFilters'
    */
   const loadAvailableFilters = async () => {
     setLoading(prev => ({ ...prev, filters: true }));
@@ -144,7 +140,6 @@ export const DoraDashboard: React.FC = () => {
 
   /**
    * Load cascading applications based on selected projects
-   * FIXED: Using getCascadingFilters method (if it exists) or fallback to all applications
    */
   const loadCascadingApplications = async (selectedProjects: string[]) => {
     setLoading(prev => ({ ...prev, cascadingFilters: true }));
@@ -173,7 +168,6 @@ export const DoraDashboard: React.FC = () => {
 
   /**
    * Load all metrics data
-   * FIXED: Build params correctly without non-existent getDateRangeParams
    */
   const loadMetricsData = async (appliedFilters?: DashboardFilters) => {
     const useFilters = appliedFilters || filters;
@@ -301,7 +295,6 @@ export const DoraDashboard: React.FC = () => {
 
   /**
    * Handle time range change
-   * FIXED: Properly typed
    */
   const handleTimeRangeChange = (value: string) => {
     console.log('Time range changed:', value);
@@ -310,7 +303,7 @@ export const DoraDashboard: React.FC = () => {
     const validTimeRanges = ['7d', '30d', '90d', '1y'] as const;
     const timeRange = validTimeRanges.includes(value as any) 
       ? (value as '7d' | '30d' | '90d' | '1y')
-      : '30d' as const;
+      : '1y' as const;
     
     setStagedFilters(prev => ({
       ...prev,
@@ -530,6 +523,7 @@ export const DoraDashboard: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={handleApplyFilters}
+              className="border-gray-700 hover:bg-gray-800"
             >
               Apply
             </Button>
@@ -538,7 +532,7 @@ export const DoraDashboard: React.FC = () => {
               variant="ghost"
               size="sm"
               onClick={handleClearFilters}
-              className="text-gray-400 hover:text-gray-200"
+              className="text-white hover:text-gray-200 hover:bg-gray-800"
             >
               Clear all
             </Button>
@@ -559,7 +553,7 @@ export const DoraDashboard: React.FC = () => {
             title="Deployment Frequency"
             value={metricsData.deploymentFrequency?.summary?.average_per_day}
             unit="Average deployments per day"
-            color="#10B981"
+            color="#FAFAFA"
             loading={loading.deploymentFrequency}
             error={errors.deploymentFrequency}
           />
@@ -568,7 +562,7 @@ export const DoraDashboard: React.FC = () => {
             title="Change Failure Rate"
             value={metricsData.changeFailureRate?.summary?.overall_failure_rate}
             unit="The percentage of deployments causing a failure"
-            color="#ef4444"
+            color="#FAFAFA"
             loading={loading.changeFailureRate}
             error={errors.changeFailureRate}
             isPercentage
@@ -578,7 +572,7 @@ export const DoraDashboard: React.FC = () => {
             title="Median Lead Time to Change"
             value={metricsData.leadTime?.summary?.overall_median_hours}
             unit="Average hours from commit to production"
-            color="#3b82f6"
+            color="#FAFAFA"
             loading={loading.leadTime}
             error={errors.leadTime}
           />
@@ -587,7 +581,7 @@ export const DoraDashboard: React.FC = () => {
             title="Time to Restore Services"
             value={metricsData.meanTimeToRestore?.summary?.overall_median_hours}
             unit="Average hours to restore services"
-            color="#f59e0b"
+            color="#FAFAFA"
             loading={loading.meanTimeToRestore}
             error={errors.meanTimeToRestore}
           />

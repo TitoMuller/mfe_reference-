@@ -19,11 +19,7 @@ export interface AuthenticatedRequest extends Request {
 /**
  * Authentication middleware for organization-level access control
  * 
- * This middleware implements a simple authentication strategy that can be extended
- * to integrate with your existing Zephyr JWT authentication system.
- * 
- * For now, it validates organization name from headers, but you can replace this
- * with JWT token validation or API key validation as needed.
+ * For now, it validates organization name from headers
  */
 export const authMiddleware = (
   req: AuthenticatedRequest,
@@ -70,20 +66,8 @@ export const authMiddleware = (
     }
 
     // TODO: Add JWT token validation here if integrating with Zephyr's auth system
-    // Example:
-    // const authHeader = req.headers.authorization;
-    // if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    //   return res.status(401).json({ error: true, message: 'Missing or invalid token' });
-    // }
-    // const token = authHeader.substring(7);
-    // const decoded = jwt.verify(token, config.JWT_SECRET);
-    // req.user = decoded;
 
     // TODO: Add API key validation as alternative
-    // const apiKey = req.headers[config.API_KEY_HEADER];
-    // if (apiKey && !validateApiKey(apiKey, organizationName)) {
-    //   return res.status(401).json({ error: true, message: 'Invalid API key' });
-    // }
 
     // Add organization context to request
     req.organizationName = organizationName;

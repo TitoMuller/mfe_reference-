@@ -3,39 +3,22 @@ import { doraService } from '@/services/dora-service';
 import { logWithContext } from '@/utils/logger';
 
 /**
- * DoraController (Fixed to handle correct databricksService response structure)
- * 
- * Key fixes:
- * 1. Fixed response structure access for getAvailableFilters
- * 2. The databricksService returns { organization_name, available_filters: {...} }
- * 3. We need to access the nested available_filters object
- * 4. Maintains backward compatibility with expected frontend response format
- */
+ * DoraController 
+**/ 
 export class DoraController {
 
   /**
-   * Convert multi-select parameters to the format expected by existing services
+   * Normalize parameters for service layer compatibility
+   * Preserves arrays for multi-select support and handles type casting
    */
   private normalizeParams(params: Record<string, any>): any {
-    const normalized = { ...params };
-    
-    // Convert arrays to single values for existing service compatibility
-    // We'll handle multi-select by making multiple calls if needed
-    if (Array.isArray(params.projectName)) {
-      normalized.projectName = params.projectName[0]; // Use first for now
-    }
-    if (Array.isArray(params.applicationName)) {
-      normalized.applicationName = params.applicationName[0]; // Use first for now
-    }
-    if (Array.isArray(params.environmentType)) {
-      normalized.environmentType = params.environmentType[0]; // Use first for now
-    }
-    
-    return normalized;
+    // Return params as-is to preserve arrays, cast to any for service compatibility
+    // Arrays are handled by databricks-service buildWhereClause helper
+    return params as any;
   }
 
   /**
-   * getAvailableFilters (FIXED to handle cascading filters correctly)
+   * getAvailableFilters 
    */
   async getAvailableFilters(req: Request, res: Response): Promise<void> {
     const organizationName = req.params.organizationName;
@@ -49,8 +32,6 @@ export class DoraController {
       cascadingProjects: selectedProjects,
       isFiltered: selectedProjects.length > 0
     });
-
-    // Validation is now handled by route-level middleware - no need to validate here
 
     try {
       // Get all available filters first (using cached service)
@@ -96,7 +77,7 @@ export class DoraController {
   }
 
   /**
-   * getDeploymentFrequency (FIXED to support multi-select)
+   * getDeploymentFrequency 
    */
   async getDeploymentFrequency(req: Request, res: Response): Promise<void> {
     const organizationName = req.params.organizationName;
@@ -110,13 +91,10 @@ export class DoraController {
       }
     });
 
-    // Validation is now handled by route-level middleware
-
     try {
-      // Normalize parameters for existing service
+      // Normalize parameters for service compatibility
       const normalizedParams = this.normalizeParams(params);
       
-      // Use existing doraService method
       const response = await doraService.getDeploymentFrequency(normalizedParams);
 
       logWithContext.info('Deployment frequency request completed', organizationName, {
@@ -134,7 +112,7 @@ export class DoraController {
   }
 
   /**
-   * getChangeFailureRate (FIXED to support multi-select)
+   * getChangeFailureRate 
    */
   async getChangeFailureRate(req: Request, res: Response): Promise<void> {
     const organizationName = req.params.organizationName;
@@ -148,13 +126,10 @@ export class DoraController {
       }
     });
 
-    // Validation is now handled by route-level middleware
-
     try {
-      // Normalize parameters for existing service
+      // Normalize parameters for service compatibility
       const normalizedParams = this.normalizeParams(params);
       
-      // Use existing doraService method
       const response = await doraService.getChangeFailureRate(normalizedParams);
 
       logWithContext.info('Change failure rate request completed', organizationName, {
@@ -173,7 +148,7 @@ export class DoraController {
   }
 
   /**
-   * getLeadTimeForChanges (FIXED to support multi-select)
+   * getLeadTimeForChanges 
    */
   async getLeadTimeForChanges(req: Request, res: Response): Promise<void> {
     const organizationName = req.params.organizationName;
@@ -187,13 +162,10 @@ export class DoraController {
       }
     });
 
-    // Validation is now handled by route-level middleware
-
     try {
-      // Normalize parameters for existing service
+      // Normalize parameters for service compatibility
       const normalizedParams = this.normalizeParams(params);
       
-      // Use existing doraService method
       const response = await doraService.getLeadTimeForChanges(normalizedParams);
 
       logWithContext.info('Lead time request completed', organizationName, {
@@ -211,7 +183,7 @@ export class DoraController {
   }
 
   /**
-   * getMeanTimeToRestore (FIXED to support multi-select)
+   * getMeanTimeToRestore 
    */
   async getMeanTimeToRestore(req: Request, res: Response): Promise<void> {
     const organizationName = req.params.organizationName;
@@ -225,13 +197,10 @@ export class DoraController {
       }
     });
 
-    // Validation is now handled by route-level middleware
-
     try {
-      // Normalize parameters for existing service
+      // Normalize parameters for service compatibility
       const normalizedParams = this.normalizeParams(params);
       
-      // Use existing doraService method
       const response = await doraService.getMeanTimeToRestore(normalizedParams);
 
       logWithContext.info('Mean time to restore request completed', organizationName, {
@@ -249,7 +218,7 @@ export class DoraController {
   }
 
   /**
-   * getAllMetrics (FIXED to use correct service method)
+   * getAllMetrics 
    */
   async getAllMetrics(req: Request, res: Response): Promise<void> {
     const organizationName = req.params.organizationName;
@@ -263,10 +232,8 @@ export class DoraController {
       }
     });
 
-    // Validation is now handled by route-level middleware
-
     try {
-      // Normalize parameters for existing service
+      // Normalize parameters for service compatibility
       const normalizedParams = this.normalizeParams(params);
       
       // Call individual metrics since getAllDoraMetrics doesn't exist
@@ -324,16 +291,14 @@ export class DoraController {
   }
 
   /**
-   * getOrganizationHealth (OPTIMIZED to use cached validation)
+   * getOrganizationHealth 
    */
   async getOrganizationHealth(req: Request, res: Response): Promise<void> {
     const organizationName = req.params.organizationName;
     logWithContext.info('Organization health check endpoint called', organizationName);
 
     try {
-      // Use cached validation (will be quick if already called in middleware)
       const hasAccess = await doraService.validateOrganizationAccess(organizationName);
-      // FIXED: Handle the correct response structure from databricksService
       const filtersResult = hasAccess ? await doraService.getAvailableFilters(organizationName) : null;
 
       const healthStatus = {

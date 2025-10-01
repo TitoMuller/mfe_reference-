@@ -1,5 +1,3 @@
-// Fixed dora-service.ts - Simplified since DB now does aggregation
-
 import { databricksService } from './databricks-service';
 import { logWithContext } from '@/utils/logger';
 import { 
@@ -11,7 +9,7 @@ import {
 
 export class DoraService {
   /**
-   * SIMPLIFIED: Get deployment frequency data
+   * Get deployment frequency data
    * 
    * Since the database now returns properly aggregated data by date,
    * we no longer need complex frontend aggregation logic.
@@ -82,7 +80,7 @@ export class DoraService {
   }
 
   /**
-   * SIMPLIFIED: Get change failure rate data
+   * Get change failure rate data
    */
   async getChangeFailureRate(params: {
     organizationName: string;
@@ -148,7 +146,7 @@ export class DoraService {
   }
 
   /**
-   * SIMPLIFIED: Get lead time data
+   * Get lead time data
    */
   async getLeadTimeForChanges(params: {
     organizationName: string;
@@ -217,7 +215,7 @@ export class DoraService {
   }
 
   /**
-   * SIMPLIFIED: Get mean time to restore data
+   * Get mean time to restore data
    */
   async getMeanTimeToRestore(params: {
     organizationName: string;

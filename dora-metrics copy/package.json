@@ -8,9 +8,10 @@
     "frontend"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev:api\" \"npm run dev:frontend\"",
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:frontend:delayed\"",
     "dev:api": "cd microservice && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
+    "dev:frontend:delayed": "sleep 3 && npm run dev:frontend",
     "build": "npm run build:api && npm run build:frontend",
     "build:api": "cd microservice && npm run build",
     "build:frontend": "cd frontend && npm run build",

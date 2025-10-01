@@ -7,18 +7,12 @@ import {
   FiltersResponse,
 } from '@/types/api';
 
-/**
- * FIXED: Define ApiError interface here since it's not properly exported from types
- */
 interface ApiError extends Error {
   statusCode?: number;
   organization?: string;
   timestamp?: string;
 }
 
-/**
- * FIXED: Define custom error types for better error handling
- */
 interface NetworkError extends Error {
   code?: string;
   statusCode: number;
@@ -32,7 +26,10 @@ interface NetworkError extends Error {
  */
 class ApiService {
   private readonly baseUrl = '/api/v1/dora';
-  private organizationName = 'zephyrcloudio'; // This should come from auth context
+  // Temporary: Hardcoded org name for development.
+  // Replace 'zephyrcloudio' with another organization name to test.
+  // In production, this value will come from the auth context.
+  private organizationName = 'zephyrcloudio';
 
   /**
    * Set the organization name (typically from authentication context)
@@ -75,9 +72,6 @@ class ApiService {
     }
   }
 
-  /**
-   * Build query string from parameters, handling arrays for multi-select (FIXED)
-   */
   private buildQueryString(params: Record<string, any>): string {
     const searchParams = new URLSearchParams();
     
@@ -124,7 +118,7 @@ class ApiService {
   }
 
   /**
-   * Get deployment frequency (FIXED to support multi-select)
+   * Get deployment frequency 
    */
   async getDeploymentFrequency(params: {
     startDate?: string;
@@ -141,7 +135,7 @@ class ApiService {
   }
 
   /**
-   * Get change failure rate (FIXED to support multi-select)
+   * Get change failure rate 
    */
   async getChangeFailureRate(params: {
     startDate?: string;
@@ -158,7 +152,7 @@ class ApiService {
   }
 
   /**
-   * Get lead time for changes (FIXED to support multi-select)
+   * Get lead time for changes 
    */
   async getLeadTime(params: {
     startDate?: string;
@@ -175,7 +169,7 @@ class ApiService {
   }
 
   /**
-   * Get mean time to restore (FIXED to support multi-select)
+   * Get mean time to restore 
    */
   async getMeanTimeToRestore(params: {
     startDate?: string;
@@ -192,8 +186,7 @@ class ApiService {
   }
 
   /**
-   * Get all metrics at once (FIXED to support multi-select)
-   * This is more efficient than calling each metric individually
+   * Get all metrics at once 
    */
   async getAllMetrics(params: {
     startDate?: string;
